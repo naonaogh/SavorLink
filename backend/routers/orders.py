@@ -1,0 +1,58 @@
+from __future__ import annotations
+
+from typing import List
+
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from backend.database.database import get_session
+from backend.database.schemas.order import OrderCreate, OrderListItem, OrderRead, OrderUpdateStatus
+from backend.routers.deps import get_current_user
+from backend.services.order_service import OrderService
+
+
+router = APIRouter(prefix="/orders", tags=["orders"])
+service = OrderService()
+
+
+@router.get("", response_model=List[OrderListItem])
+async def list_orders(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    session: AsyncSession = Depends(get_session),
+):
+    orders = await service.list_orders(session, limit=limit, offset=offset)
+    return orders
+
+
+@router.get("/{order_id}", response_model=OrderRead)
+async def get_order(
+    order_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    order = await service.get_order(session, order_id)
+    return order
+
+
+@router.post("", response_model=OrderRead, status_code=201)
+async def create_order(
+    payload: OrderCreate,
+    session: AsyncSession = Depends(get_session),
+    user=Depends(get_current_user),
+):
+    # buyer_enterprise_id берём из пользователя
+    order = await service.create_order(session, payload, buyer_enterprise_id=user.enterprise_id)
+    await session.commit()
+    return order
+
+
+@router.patch("/{order_id}/status", response_model=OrderRead)
+async def update_order_status(
+    order_id: int,
+    payload: OrderUpdateStatus,
+    session: AsyncSession = Depends(get_session),
+):
+    order = await service.update_status(session, order_id, payload)
+    await session.commit()
+    return order
+
