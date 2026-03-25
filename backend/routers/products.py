@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 from typing import List
 
 from fastapi import APIRouter, Depends, Query
@@ -8,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.database.database import get_session
 from backend.database.schemas.product import ProductCreate, ProductRead, ProductShort, ProductUpdate
 from backend.services.product_service import ProductService
-
 
 router = APIRouter(prefix="/products", tags=["products"])
 service = ProductService()
@@ -63,4 +61,3 @@ async def delete_product(
     await service.delete_product(session, product_id)
     await session.commit()
     return None
-

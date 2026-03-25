@@ -4,7 +4,6 @@ from typing import List, Optional
 from pydantic import BaseModel, field_validator, ConfigDict
 from .user import UserListItem
 
-
 class MessageCreate(BaseModel):
     """Схема для создания сообщения."""
     content: str

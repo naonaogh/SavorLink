@@ -40,10 +40,13 @@ async def create_order(
     session: AsyncSession = Depends(get_session),
     user=Depends(get_current_user),
 ):
-    # buyer_enterprise_id берём из пользователя
-    order = await service.create_order(session, payload, buyer_enterprise_id=user.enterprise_id)
+    order = await service.create_order(
+        session,
+        payload,
+        buyer_enterprise_id=user.enterprise_id
+    )
     await session.commit()
-    return order
+    return order  
 
 
 @router.patch("/{order_id}/status", response_model=OrderRead)

@@ -17,7 +17,7 @@ from .product import (
     ProductUpdate,
     ProductRead,
     ProductShort,
-    CategoryShort,
+    CategoryRead,
     ReviewsSummary
 )
 from .cart import (

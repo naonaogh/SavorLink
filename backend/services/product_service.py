@@ -1,10 +1,10 @@
 from __future__ import annotations
-
-from decimal import Decimal
 from typing import Sequence
 
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from backend.database.models import Product
 from backend.database.schemas.product import ProductCreate, ProductUpdate
@@ -25,7 +25,6 @@ class ProductService:
         return product
 
     async def create_product(self, session: AsyncSession, data: ProductCreate, *, enterprise_id: int) -> Product:
-        # В MVP enterprise_id берём из авторизованного пользователя/контекста (пока параметром).
         product = Product(
             name=data.name,
             description=data.description,
@@ -35,27 +34,42 @@ class ProductService:
             enterprise_id=enterprise_id,
             category_id=data.category_id,
         )
-        return await self.repo.create(session, product)
+        await self.repo.create(session, product)
+
+        # подгружаем отношения для сериализации
+        stmt = (
+            select(Product)
+            .where(Product.id == product.id)
+            .options(
+                selectinload(Product.category),
+                selectinload(Product.enterprise),
+            )
+        )
+        res = await session.execute(stmt)
+        return res.scalar_one()
 
     async def update_product(self, session: AsyncSession, product_id: int, data: ProductUpdate) -> Product:
         product = await self.get_product(session, product_id)
 
-        if data.name is not None:
-            product.name = data.name
-        if data.description is not None:
-            product.description = data.description
-        if data.price is not None:
-            product.price = data.price
-        if data.min_order_qty is not None:
-            product.min_order_qty = data.min_order_qty
-        if data.quantity_in_stock is not None:
-            product.quantity_in_stock = data.quantity_in_stock
-        if data.category_id is not None:
-            product.category_id = data.category_id
+        for field in ["name", "description", "price", "min_order_qty", "quantity_in_stock", "category_id"]:
+            value = getattr(data, field)
+            if value is not None:
+                setattr(product, field, value)
 
         await session.flush()
         await session.refresh(product)
-        return product
+
+        # подгружаем отношения
+        stmt = (
+            select(Product)
+            .where(Product.id == product.id)
+            .options(
+                selectinload(Product.category),
+                selectinload(Product.enterprise),
+            )
+        )
+        res = await session.execute(stmt)
+        return res.scalar_one()
 
     async def delete_product(self, session: AsyncSession, product_id: int) -> None:
         product = await self.get_product(session, product_id)

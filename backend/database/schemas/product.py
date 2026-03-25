@@ -1,28 +1,19 @@
-"""Схемы для товаров."""
+from __future__ import annotations
+from typing import Optional
 from decimal import Decimal
 from datetime import datetime
-from typing import Optional
 from pydantic import BaseModel, field_validator, ConfigDict
+
 from .enterprise import EnterpriseShort
 from .category import CategoryRead
 
 
-class CategoryShort(BaseModel):
-    """Короткая версия категории."""
-    id: int
-    name: str
-
-    model_config = ConfigDict(from_attributes=True)
-
-
 class ReviewsSummary(BaseModel):
-    """Сводка по отзывам товара."""
     avg: Optional[float] = None
     count: int = 0
 
 
 class ProductCreate(BaseModel):
-    """Схема для создания товара."""
     name: str
     description: Optional[str] = None
     price: Decimal
@@ -33,7 +24,7 @@ class ProductCreate(BaseModel):
     @field_validator("name")
     @classmethod
     def validate_name(cls, v: str) -> str:
-        if not v or len(v.strip()) == 0:
+        if not v.strip():
             raise ValueError("Название товара не может быть пустым")
         if len(v) > 200:
             raise ValueError("Название товара не должно превышать 200 символов")
@@ -64,7 +55,6 @@ class ProductCreate(BaseModel):
 
 
 class ProductUpdate(BaseModel):
-    """Схема для обновления товара (PATCH)."""
     name: Optional[str] = None
     description: Optional[str] = None
     price: Optional[Decimal] = None
@@ -76,7 +66,7 @@ class ProductUpdate(BaseModel):
     @classmethod
     def validate_name(cls, v: Optional[str]) -> Optional[str]:
         if v is not None:
-            if len(v.strip()) == 0:
+            if not v.strip():
                 raise ValueError("Название товара не может быть пустым")
             if len(v) > 200:
                 raise ValueError("Название товара не должно превышать 200 символов")
@@ -108,19 +98,17 @@ class ProductUpdate(BaseModel):
 
 
 class ProductShort(BaseModel):
-    """Короткая версия товара для списков."""
     id: int
     name: str
     price: Decimal
     min_order_qty: Optional[int] = None
-    category: CategoryShort
+    category: CategoryRead
     enterprise: EnterpriseShort
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class ProductRead(BaseModel):
-    """Полная схема для чтения товара."""
     id: int
     name: str
     description: Optional[str] = None
@@ -131,5 +119,9 @@ class ProductRead(BaseModel):
     enterprise: EnterpriseShort
     created_at: datetime
     reviews_summary: Optional[ReviewsSummary] = None
+
+    # добавляем имена для удобной сериализации
+    category_name: Optional[str] = None
+    enterprise_name: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)

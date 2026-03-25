@@ -6,17 +6,31 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from backend.database.models import Order, OrderItem
+from backend.database.models import Order, OrderItem, Product
 
 
 class OrderRepository:
-    async def list(self, session: AsyncSession, *, limit: int = 50, offset: int = 0) -> Sequence[Order]:
+
+    async def list(
+        self,
+        session: AsyncSession,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> Sequence[Order]:
         stmt = (
             select(Order)
             .options(
                 selectinload(Order.buyer_enterprise),
                 selectinload(Order.seller_enterprise),
-                selectinload(Order.items).selectinload(OrderItem.product),
+                # eager load для items → product → category
+                selectinload(Order.items)
+                    .selectinload(OrderItem.product)
+                    .selectinload(Product.category),
+                # отдельный eager load для items → product → enterprise
+                selectinload(Order.items)
+                    .selectinload(OrderItem.product)
+                    .selectinload(Product.enterprise),
                 selectinload(Order.payment),
                 selectinload(Order.documents),
             )
@@ -24,27 +38,62 @@ class OrderRepository:
             .limit(limit)
             .offset(offset)
         )
+
         res = await session.execute(stmt)
         return res.scalars().all()
 
-    async def get(self, session: AsyncSession, order_id: int) -> Order | None:
+    async def get(
+        self,
+        session: AsyncSession,
+        order_id: int,
+    ) -> Order | None:
         stmt = (
             select(Order)
             .where(Order.id == order_id)
             .options(
                 selectinload(Order.buyer_enterprise),
                 selectinload(Order.seller_enterprise),
-                selectinload(Order.items).selectinload(OrderItem.product),
+                # eager load для items → product → category
+                selectinload(Order.items)
+                    .selectinload(OrderItem.product)
+                    .selectinload(Product.category),
+                # отдельный eager load для items → product → enterprise
+                selectinload(Order.items)
+                    .selectinload(OrderItem.product)
+                    .selectinload(Product.enterprise),
                 selectinload(Order.payment),
                 selectinload(Order.documents),
             )
         )
+
         res = await session.execute(stmt)
         return res.scalars().first()
 
-    async def create(self, session: AsyncSession, order: Order) -> Order:
+    async def create(
+        self,
+        session: AsyncSession,
+        order: Order,
+    ) -> Order:
         session.add(order)
         await session.flush()
-        await session.refresh(order)
-        return order
 
+        # перечитываем заказ с полным eager loading
+        stmt = (
+            select(Order)
+            .where(Order.id == order.id)
+            .options(
+                selectinload(Order.buyer_enterprise),
+                selectinload(Order.seller_enterprise),
+                selectinload(Order.items)
+                    .selectinload(OrderItem.product)
+                    .selectinload(Product.category),
+                selectinload(Order.items)
+                    .selectinload(OrderItem.product)
+                    .selectinload(Product.enterprise),
+                selectinload(Order.payment),
+                selectinload(Order.documents),
+            )
+        )
+
+        res = await session.execute(stmt)
+        return res.scalar_one()

@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 from typing import Sequence
 
 from sqlalchemy import select
@@ -39,6 +38,7 @@ class ProductRepository:
     async def create(self, session: AsyncSession, product: Product) -> Product:
         session.add(product)
         await session.flush()
+        # подгружаем отношения для безопасной сериализации
         await session.refresh(product)
         return product
 

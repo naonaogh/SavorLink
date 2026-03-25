@@ -1,18 +1,27 @@
 """Схемы для пользователей."""
-from decimal import Decimal
+
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
+
 from pydantic import BaseModel, EmailStr, field_validator, ConfigDict
+
 from backend.database.models import UserRole
 from .enterprise import EnterpriseShort
 
 
+# ────────────────────────────────────────────────
+# CREATE
+# ────────────────────────────────────────────────
+
 class UserCreate(BaseModel):
     """Схема для создания пользователя."""
+
     email: EmailStr
     password: str  # plain password, будет хеширован
     role: UserRole
-    enterprise_id: int
+
+    # many-to-many
+    enterprise_ids: List[int] = []
 
     @field_validator("password")
     @classmethod
@@ -24,12 +33,20 @@ class UserCreate(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# ────────────────────────────────────────────────
+# UPDATE
+# ────────────────────────────────────────────────
+
 class UserUpdate(BaseModel):
     """Схема для обновления пользователя (PATCH)."""
+
     email: Optional[EmailStr] = None
-    password: Optional[str] = None  # новый пароль
-    old_password: Optional[str] = None  # старый пароль для смены
-    phone: Optional[str] = None
+
+    password: Optional[str] = None
+    old_password: Optional[str] = None
+
+    # many-to-many обновление
+    enterprise_ids: Optional[List[int]] = None
 
     @field_validator("password")
     @classmethod
@@ -41,24 +58,36 @@ class UserUpdate(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# ────────────────────────────────────────────────
+# READ
+# ────────────────────────────────────────────────
+
 class UserRead(BaseModel):
-    """Схема для чтения пользователя."""
+    """Полная схема пользователя."""
+
     id: int
     email: str
     role: UserRole
-    enterprise_id: int
     created_at: datetime
-    enterprise: Optional[EnterpriseShort] = None
+
+    # many-to-many
+    enterprises: List[EnterpriseShort] = []
 
     model_config = ConfigDict(from_attributes=True)
 
 
+# ────────────────────────────────────────────────
+# LIST ITEM
+# ────────────────────────────────────────────────
+
 class UserListItem(BaseModel):
     """Схема для списка пользователей."""
+
     id: int
     email: str
     role: UserRole
-    enterprise_id: int
-    enterprise: Optional[EnterpriseShort] = None
+
+    # можно убрать, если не нужно в списке
+    enterprises: List[EnterpriseShort] = []
 
     model_config = ConfigDict(from_attributes=True)

@@ -2,7 +2,6 @@ from sqlalchemy import (
     Column,
     BigInteger,
     Integer,
-    String,
     Text,
     Boolean,
     ForeignKey,
@@ -10,10 +9,12 @@ from sqlalchemy import (
     Numeric,
     CheckConstraint,
     Index,
+    Computed,
+    Table,
+    func
 )
 from sqlalchemy.orm import relationship, DeclarativeBase
-from sqlalchemy.sql import func
-from sqlalchemy import Enum as SQLEnum  # ← используем SQLEnum для явного задания имени
+from sqlalchemy import Enum as PGEnum
 import enum
 
 
@@ -22,7 +23,7 @@ class Base(DeclarativeBase):
 
 
 # ────────────────────────────────────────────────
-# ENUMS (все строковые значения)
+# ENUMS
 # ────────────────────────────────────────────────
 
 class UserRole(enum.Enum):
@@ -53,6 +54,18 @@ class DocumentType(enum.Enum):
 
 
 # ────────────────────────────────────────────────
+# MANY-TO-MANY TABLE
+# ────────────────────────────────────────────────
+
+user_enterprises = Table(
+    "user_enterprises",
+    Base.metadata,
+    Column("user_id", BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+    Column("enterprise_id", BigInteger, ForeignKey("enterprises.id", ondelete="CASCADE"), primary_key=True),
+)
+
+
+# ────────────────────────────────────────────────
 # TABLES
 # ────────────────────────────────────────────────
 
@@ -60,14 +73,21 @@ class Enterprise(Base):
     __tablename__ = "enterprises"
 
     id = Column(BigInteger, primary_key=True)
-    short_name = Column(Text, nullable=False)
+    short_name = Column(Text, nullable=False, unique=True)
     inn = Column(Text, nullable=False)
     region = Column(Text, nullable=False)
     phone = Column(Text)
     email = Column(Text)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    logo_url = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    users = relationship("User", back_populates="enterprise")
+    users = relationship("User", secondary=user_enterprises, back_populates="enterprises")
+
+    products = relationship("Product", back_populates="enterprise")
+
+    orders_as_buyer = relationship("Order", foreign_keys="Order.buyer_enterprise_id")
+    orders_as_seller = relationship("Order", foreign_keys="Order.seller_enterprise_id")
+
     reviews_as_author = relationship(
         "EnterpriseReview",
         foreign_keys="EnterpriseReview.author_enterprise_id",
@@ -78,6 +98,7 @@ class Enterprise(Base):
         foreign_keys="EnterpriseReview.target_enterprise_id",
         back_populates="target_enterprise",
     )
+
     product_reviews = relationship("ProductReview", back_populates="author_enterprise")
 
 
@@ -89,23 +110,20 @@ class User(Base):
     password_hash = Column(Text, nullable=False)
 
     role = Column(
-        SQLEnum(
-            UserRole,
-            name="user_role",                        # ← ЯВНО указываем имя типа в БД
-            values_callable=lambda en: [e.value for e in en],
-            create_type=False,
-        ),
+        PGEnum(UserRole, name="user_role", create_type=False),
         nullable=False,
     )
 
-    enterprise_id = Column(BigInteger, ForeignKey("enterprises.id", ondelete="RESTRICT"), nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    enterprise = relationship("Enterprise", back_populates="users")
-    carts = relationship("Cart", back_populates="user")
+    enterprises = relationship("Enterprise", secondary=user_enterprises, back_populates="users")
+
+    cart = relationship("Cart", back_populates="user", uselist=False)
+
     messages_sent = relationship("Message", back_populates="sender")
     order_history = relationship("OrderHistory", back_populates="changed_by_user")
     favorites = relationship("Favorite", back_populates="user")
+
     chats_as_user1 = relationship("Chat", foreign_keys="Chat.user1_id", back_populates="user1")
     chats_as_user2 = relationship("Chat", foreign_keys="Chat.user2_id", back_populates="user2")
 
@@ -126,12 +144,15 @@ class Product(Base):
     price = Column(Numeric(12, 2), nullable=False)
     min_order_qty = Column(Integer)
     quantity_in_stock = Column(Integer)
+
     enterprise_id = Column(BigInteger, ForeignKey("enterprises.id", ondelete="CASCADE"), nullable=False)
     category_id = Column(BigInteger, ForeignKey("categories.id"), nullable=False)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    enterprise = relationship("Enterprise")
+    enterprise = relationship("Enterprise", back_populates="products")
     category = relationship("Category")
+
     favorites = relationship("Favorite", back_populates="product")
     reviews = relationship("ProductReview", back_populates="product")
 
@@ -142,22 +163,20 @@ class Order(Base):
     id = Column(BigInteger, primary_key=True)
 
     status = Column(
-        SQLEnum(
-            OrderStatus,
-            name="order_status",
-            values_callable=lambda en: [e.value for e in en],
-            create_type=False,
-        ),
+        PGEnum(OrderStatus, name="order_status", create_type=False),
         nullable=False,
     )
 
     total_amount = Column(Numeric(14, 2))
+
     buyer_enterprise_id = Column(BigInteger, ForeignKey("enterprises.id"), nullable=False)
     seller_enterprise_id = Column(BigInteger, ForeignKey("enterprises.id"), nullable=False)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     buyer_enterprise = relationship("Enterprise", foreign_keys=[buyer_enterprise_id])
     seller_enterprise = relationship("Enterprise", foreign_keys=[seller_enterprise_id])
+
     items = relationship("OrderItem", back_populates="order")
     history = relationship("OrderHistory", back_populates="order")
     payment = relationship("Payment", back_populates="order", uselist=False)
@@ -170,6 +189,7 @@ class OrderItem(Base):
     id = Column(BigInteger, primary_key=True)
     order_id = Column(BigInteger, ForeignKey("orders.id", ondelete="CASCADE"), nullable=False)
     product_id = Column(BigInteger, ForeignKey("products.id"), nullable=False)
+
     quantity = Column(Integer, nullable=False)
     price = Column(Numeric(12, 2), nullable=False)
 
@@ -184,12 +204,7 @@ class OrderHistory(Base):
     order_id = Column(BigInteger, ForeignKey("orders.id", ondelete="CASCADE"), nullable=False)
 
     status = Column(
-        SQLEnum(
-            OrderStatus,
-            name="order_status",
-            values_callable=lambda en: [e.value for e in en],
-            create_type=False,
-        ),
+        PGEnum(OrderStatus, name="order_status", create_type=False),
         nullable=False,
     )
 
@@ -205,9 +220,10 @@ class Cart(Base):
 
     id = Column(BigInteger, primary_key=True)
     user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
+
     updated_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    user = relationship("User", back_populates="carts")
+    user = relationship("User", back_populates="cart")
     items = relationship("CartItem", back_populates="cart")
 
 
@@ -217,6 +233,7 @@ class CartItem(Base):
     id = Column(BigInteger, primary_key=True)
     cart_id = Column(BigInteger, ForeignKey("carts.id", ondelete="CASCADE"), nullable=False)
     product_id = Column(BigInteger, ForeignKey("products.id"), nullable=False)
+
     quantity = Column(Integer, nullable=False)
 
     cart = relationship("Cart", back_populates="items")
@@ -229,6 +246,7 @@ class Favorite(Base):
     id = Column(BigInteger, primary_key=True)
     user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     product_id = Column(BigInteger, ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
@@ -244,15 +262,11 @@ class Payment(Base):
 
     id = Column(BigInteger, primary_key=True)
     order_id = Column(BigInteger, ForeignKey("orders.id", ondelete="CASCADE"), unique=True, nullable=False)
+
     amount = Column(Numeric(14, 2), nullable=False)
 
     status = Column(
-        SQLEnum(
-            PaymentStatus,
-            name="payment_status",
-            values_callable=lambda en: [e.value for e in en],
-            create_type=False,
-        ),
+        PGEnum(PaymentStatus, name="payment_status", create_type=False),
         nullable=False,
     )
 
@@ -268,12 +282,7 @@ class Document(Base):
     order_id = Column(BigInteger, ForeignKey("orders.id", ondelete="CASCADE"), nullable=False)
 
     type = Column(
-        SQLEnum(
-            DocumentType,
-            name="document_type",
-            values_callable=lambda en: [e.value for e in en],
-            create_type=False,
-        ),
+        PGEnum(DocumentType, name="document_type", create_type=False),
         nullable=False,
     )
 
@@ -289,6 +298,7 @@ class EnterpriseReview(Base):
     id = Column(BigInteger, primary_key=True)
     author_enterprise_id = Column(BigInteger, ForeignKey("enterprises.id"), nullable=False)
     target_enterprise_id = Column(BigInteger, ForeignKey("enterprises.id"), nullable=False)
+
     rating = Column(Integer, nullable=False)
     comment = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -297,8 +307,17 @@ class EnterpriseReview(Base):
         CheckConstraint("rating BETWEEN 1 AND 5"),
     )
 
-    author_enterprise = relationship("Enterprise", foreign_keys=[author_enterprise_id], back_populates="reviews_as_author")
-    target_enterprise = relationship("Enterprise", foreign_keys=[target_enterprise_id], back_populates="reviews_as_target")
+    author_enterprise = relationship(
+        "Enterprise",
+        foreign_keys=[author_enterprise_id],
+        back_populates="reviews_as_author"
+    )
+
+    target_enterprise = relationship(
+        "Enterprise",
+        foreign_keys=[target_enterprise_id],
+        back_populates="reviews_as_target"
+    )
 
 
 class ProductReview(Base):
@@ -307,6 +326,7 @@ class ProductReview(Base):
     id = Column(BigInteger, primary_key=True)
     author_enterprise_id = Column(BigInteger, ForeignKey("enterprises.id"), nullable=False)
     product_id = Column(BigInteger, ForeignKey("products.id"), nullable=False)
+
     rating = Column(Integer, nullable=False)
     comment = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -323,10 +343,13 @@ class Chat(Base):
     __tablename__ = "chats"
 
     id = Column(BigInteger, primary_key=True)
+
     user1_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     user2_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    user_min = Column(BigInteger, nullable=False)
-    user_max = Column(BigInteger, nullable=False)
+
+    user_min = Column(BigInteger, Computed("LEAST(user1_id, user2_id)", persisted=True))
+    user_max = Column(BigInteger, Computed("GREATEST(user1_id, user2_id)", persisted=True))
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
@@ -337,7 +360,8 @@ class Chat(Base):
 
     user1 = relationship("User", foreign_keys=[user1_id], back_populates="chats_as_user1")
     user2 = relationship("User", foreign_keys=[user2_id], back_populates="chats_as_user2")
-    messages = relationship("Message", back_populates="chat")
+
+    messages = relationship("Message", back_populates="chat", cascade="all, delete-orphan")
 
 
 class Message(Base):
@@ -346,6 +370,7 @@ class Message(Base):
     id = Column(BigInteger, primary_key=True)
     chat_id = Column(BigInteger, ForeignKey("chats.id", ondelete="CASCADE"), nullable=False)
     sender_id = Column(BigInteger, ForeignKey("users.id"), nullable=False)
+
     content = Column(Text, nullable=False)
     is_read = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

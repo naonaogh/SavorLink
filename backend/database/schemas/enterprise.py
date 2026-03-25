@@ -1,12 +1,14 @@
 """Схемы для предприятий."""
+
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
+
 from pydantic import BaseModel, EmailStr, field_validator, ConfigDict
+
 from .common import validate_inn, validate_phone
 
 
 class EnterpriseShort(BaseModel):
-    """Короткая версия предприятия для вложенных объектов."""
     id: int
     short_name: str
 
@@ -14,12 +16,12 @@ class EnterpriseShort(BaseModel):
 
 
 class EnterpriseCreate(BaseModel):
-    """Схема для создания предприятия."""
     short_name: str
     inn: str
     region: str
     phone: Optional[str] = None
     email: Optional[EmailStr] = None
+    logo_url: Optional[str] = None
 
     @field_validator("short_name")
     @classmethod
@@ -44,13 +46,12 @@ class EnterpriseCreate(BaseModel):
 
 
 class EnterpriseUpdate(BaseModel):
-    """Схема для обновления предприятия (PATCH)."""
     short_name: Optional[str] = None
     inn: Optional[str] = None
     region: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[EmailStr] = None
-    logo_url: Optional[str] = None  # для будущего использования
+    logo_url: Optional[str] = None
 
     @field_validator("short_name")
     @classmethod
@@ -78,17 +79,30 @@ class EnterpriseUpdate(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# 🔹 короткая схема пользователя (чтобы не было рекурсии)
+class UserShort(BaseModel):
+    id: int
+    email: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class EnterpriseRead(BaseModel):
-    """Схема для чтения предприятия."""
     id: int
     short_name: str
     inn: str
     region: str
     phone: Optional[str] = None
     email: Optional[str] = None
-    rating: Optional[float] = None  # вычисляемое поле (avg rating)
-    review_count: Optional[int] = None  # вычисляемое поле
-    products_count: Optional[int] = None  # вычисляемое поле
+    logo_url: Optional[str] = None
+
+    rating: Optional[float] = None
+    review_count: Optional[int] = None
+    products_count: Optional[int] = None
+
+    # M2M
+    users: List[UserShort] = []
+
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
