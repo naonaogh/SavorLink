@@ -6,6 +6,7 @@ import Register from '@/views/Register.vue'
 import Login from '@/views/Login.vue'
 import Favorites from '@/views/Favorites.vue'
 import Cart from '@/views/Cart.vue'
+import Profile from '@/views/Profile.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -17,7 +18,9 @@ const router = createRouter({
     { path: '/login', name: 'Login', component: Login },
     { path: '/favorites', name: 'Favorites', component: Favorites },
     { path: '/cart', name: 'Cart', component: Cart },
+    { path: '/profile', name: 'Profile', component: Profile },
   ],
 })
 
 export default router
+

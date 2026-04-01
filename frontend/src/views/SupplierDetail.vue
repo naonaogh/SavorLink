@@ -11,7 +11,7 @@ const store = useShopStore()
 const supplierId = computed(() => Number(route.params.id ?? 1))
 
 const supplier = computed(
-  () => mockSuppliers.find((s) => s.id === supplierId.value) ?? mockSuppliers[0],
+  () => mockSuppliers.find((s) => s.id === supplierId.value) ?? mockSuppliers[0]!,
 )
 
 const supplierProducts = computed(() =>
@@ -221,14 +221,14 @@ const toggleSupplierFavorite = () => {
 <style scoped>
 .supplier-page {
   min-height: 100vh;
-  background: #51645b;
+  background: #ebe2ce;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
     sans-serif;
-  color: #111827;
+  color: #2e2a23;
 }
 
 .supplier-header {
-  background: linear-gradient(135deg, #485a50 0%, #51645b 100%);
+  background: linear-gradient(120deg, #364128 0%, #3f4a2f 60%, #4a5638 100%);
   padding: 0.875rem 1.5rem;
   position: sticky;
   top: 0;
@@ -246,7 +246,7 @@ const toggleSupplierFavorite = () => {
 }
 
 .nav-back {
-  color: #e5e7eb;
+  color: #f0e5d1;
   text-decoration: none;
   font-size: 0.95rem;
 }
@@ -261,7 +261,7 @@ const toggleSupplierFavorite = () => {
 }
 
 .nav-link {
-  color: #d1d5db;
+  color: #e7dbc5;
   text-decoration: none;
   font-size: 0.9rem;
 }
@@ -277,7 +277,8 @@ const toggleSupplierFavorite = () => {
 }
 
 .supplier-hero-card {
-  background: #f3f4f6;
+  background: #f5ebd6;
+  border: 1px solid #dcc7a2;
   border-radius: 1.5rem;
   padding: 1.8rem 2rem;
   box-shadow: 0 14px 40px rgba(0, 0, 0, 0.25);
@@ -365,9 +366,9 @@ const toggleSupplierFavorite = () => {
 
 .supplier-contact {
   border-radius: 999px;
-  border: 2px solid #111827;
-  background: #ffffff;
-  color: #111827;
+  border: 1px solid #6c5537;
+  background: #d9bf99;
+  color: #2b261f;
   padding: 0.6rem 1.6rem;
   font-size: 0.95rem;
   font-weight: 600;
@@ -381,7 +382,7 @@ const toggleSupplierFavorite = () => {
 .products-title {
   font-size: 1.3rem;
   font-weight: 600;
-  color: #f9fafb;
+  color: #3f4a2f;
   margin: 0 0 1.5rem;
 }
 
@@ -392,48 +393,57 @@ const toggleSupplierFavorite = () => {
 }
 
 .product-card {
-  background: #f3f4f6;
-  border-radius: 1rem;
-  padding: 1rem 1.1rem 0.9rem;
+  background: #f4ead4;
+  border-radius: 0.35rem;
+  border: 1px solid #c8d1bc;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 8px 18px rgba(72, 56, 36, 0.16);
+  overflow: hidden;
 }
 
 .product-image-placeholder {
-  background: #d1d5db;
-  border-radius: 0.75rem;
-  height: 140px;
+  background: linear-gradient(180deg, #f4ead4 0%, #edf0e3 100%);
+  border-radius: 0;
+  height: 210px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 0.7rem;
+  margin-bottom: 0;
 }
 
 .image-icon {
-  font-size: 1.7rem;
-  color: #f9fafb;
+  font-size: 2rem;
+  color: #ccb996;
 }
 
 .product-body {
   flex: 1;
+  padding: 0.8rem 0.9rem 0.4rem;
+  background: #e5deca;
+  border-top: 1px solid rgba(63, 74, 47, 0.18);
+  text-align: center;
 }
 
 .product-name {
-  font-size: 0.98rem;
-  font-weight: 600;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #2f3a24;
+  text-transform: uppercase;
   margin: 0 0 0.25rem;
 }
 
 .product-desc {
-  font-size: 0.85rem;
-  color: #4b5563;
-  margin: 0 0 0.45rem;
+  font-size: 0.78rem;
+  color: #5c4a34;
+  margin: 0 0 0.35rem;
+  text-transform: uppercase;
 }
 
 .product-price {
-  margin: 0 0 0.25rem;
-  font-size: 0.95rem;
+  margin: 0 0 0.15rem;
+  font-size: 0.94rem;
 }
 
 .price-main {
@@ -446,21 +456,23 @@ const toggleSupplierFavorite = () => {
 }
 
 .product-stock {
-  font-size: 0.8rem;
-  color: #6b7280;
+  font-size: 0.82rem;
+  color: #4e5b3b;
   margin: 0 0 0.4rem;
 }
 
 .product-footer {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
+  padding: 0 0.9rem 0.85rem;
+  background: #e5deca;
 }
 
 .product-more {
   border: none;
-  background: #111827;
+  background: #4f5e3c;
   color: #ffffff;
-  padding: 0.35rem 0.9rem;
+  padding: 0.42rem 1rem;
   border-radius: 999px;
   font-size: 0.8rem;
   cursor: pointer;
@@ -610,4 +622,3 @@ const toggleSupplierFavorite = () => {
   cursor: pointer;
 }
 </style>
-

@@ -91,7 +91,9 @@ const goLogin = () => {
       <div class="steps-row">
         <div v-for="(step, i) in steps" :key="step.icon" class="step-cell">
           <div class="step-icon-wrap">
-            <span v-if="i > 0" class="wavy-line wavy-line--left" aria-hidden="true" />
+            <span v-if="i > 0" class="connector-line connector-line--left" aria-hidden="true">
+              <span class="connector-line__dot" />
+            </span>
             <div class="step-icon" :class="`step-icon--${step.icon}`">
               <template v-if="step.icon === 'cart'">
                 <img :src="BasketIcon" alt="" class="step-svg" aria-hidden="true" />
@@ -103,7 +105,9 @@ const goLogin = () => {
                 <img :src="DocsIcon" alt="" class="step-svg" aria-hidden="true" />
               </template>
             </div>
-            <span v-if="i < steps.length - 1" class="wavy-line wavy-line--right" aria-hidden="true" />
+            <span v-if="i < steps.length - 1" class="connector-line connector-line--right" aria-hidden="true">
+              <span class="connector-line__dot" />
+            </span>
           </div>
           <p class="step-text">{{ step.title }}</p>
         </div>
@@ -126,7 +130,7 @@ const goLogin = () => {
         </div>
         <ul class="why-list">
           <li v-for="(f, i) in features" :key="i" class="why-item">
-            <span class="why-item-bullet" aria-hidden="true" />
+            <span class="why-item-mark" aria-hidden="true">✦</span>
             <span class="why-item-text">
               <strong>{{ f.bold }}</strong>{{ f.regular }}
             </span>
@@ -175,22 +179,26 @@ const goLogin = () => {
     sans-serif;
   color: #2c2c2c;
   min-height: 100vh;
-  background: #51645b;
+  background: #3f4a2f;
 }
 .home {
-  --screen1-panel: #f3f3f3;
-  --text-dark: #1a1a1a;
-  --text-muted: #5e5e5e;
-  --nav-link: #9ca3af;
-  --green-bright: #7bc98a;
+  --screen1-panel: #f5efdf;
+  --text-dark: #2e2a23;
+  --text-muted: #6d6254;
+  --nav-link: #e8dcc7;
+  --green-bright: #a97c50;
+  --olive: #3f4a2f;
+  --sand: #ebe2ce;
+  --card: #f2e4c8;
 }
 /* ========== Шапка (скрин 1) ========== */
 .header {
-  background: linear-gradient(135deg, #485a50 0%, #51645b 100%);
+  background: linear-gradient(120deg, #2c3521 0%, #333e25 55%, #3a452b 100%);
   padding: 0.875rem 1.5rem;
   position: sticky;
   top: 0;
   z-index: 20;
+  border-bottom: 1px solid rgba(232, 220, 199, 0.28);
 }
 .nav {
   display: flex;
@@ -204,7 +212,7 @@ const goLogin = () => {
 .header-logo {
   font-size: 1rem;
   font-weight: 700;
-  color: var(--text-muted);
+  color: #f3e8d6;
   text-decoration: none;
 }
 .nav-links {
@@ -230,26 +238,26 @@ const goLogin = () => {
   padding: 0.5rem 1.25rem;
   font-size: 0.9rem;
   font-weight: 600;
-  color: #1a1a1a;
-  background: #d1d5db;
+  color: #2d261f;
+  background: #d8bf98;
   border: none;
   border-radius: 0.5rem;
   cursor: pointer;
   font-family: inherit;
 }
 .btn-login:hover {
-  background: #e5e7eb;
+  background: #e4ceab;
 }
 /* ========== Первый экран: две колонки ========== */
 .screen-1 {
   display: grid;
   grid-template-columns: 1fr 1fr;
   min-height: 85vh;
-  background: linear-gradient(180deg, #51645b 0%, #566a60 100%);
+  background: linear-gradient(180deg, #3f4a2f 0%, #465335 100%);
   position: relative;
 }
 .hero-col {
-  padding: 3rem 2rem;
+  padding: 3rem 2rem 3rem 4.5rem;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -290,7 +298,7 @@ const goLogin = () => {
 .hero-headline {
   font-size: 2.35rem; /* основной размер — как на скрине, не огромный */
   font-weight: 900;
-  color: var(--text-dark);
+  color: #f7efdf;
   line-height: 1.05; /* плотные строки, почти вплотную */
   letter-spacing: -0.015em; /* лёгкое сжатие для выразительности */
   margin: 0 0 1.2rem;
@@ -301,7 +309,7 @@ const goLogin = () => {
 .hero-sub {
   font-size: 1.4rem;
   font-weight: 500;
-  color: var(--text-dark);
+  color: #e8dcc7;
   margin: 0 0 2.5rem;
   position: relative;
   z-index: 1;
@@ -328,7 +336,7 @@ const goLogin = () => {
   padding: 0;
   font-size: 1.1rem;
   font-weight: 500;
-  color: var(--text-dark);
+  color: #f3e8d6;
   background: none;
   border: none;
   cursor: pointer;
@@ -343,7 +351,8 @@ const goLogin = () => {
 }
 /* Панель «О нас» справа — крупнее, фон чёрный полупрозрачный */
 .about-panel {
-  background: rgba(0, 0, 0, 0.65);
+  background: rgba(245, 239, 223, 0.12);
+  border: 1px solid rgba(233, 214, 181, 0.34);
   margin: 2rem;
   padding: 3.5rem 3rem;
   border-radius: 1.5rem;
@@ -360,7 +369,7 @@ const goLogin = () => {
   font-weight: 900;
   margin: 0 0 1.8rem;
   text-transform: lowercase;
-  background: linear-gradient(90deg, #7bc98a 0%, #5a9a6a 100%);
+  background: linear-gradient(90deg, #d6ba90 0%, #a97c50 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -379,7 +388,7 @@ const goLogin = () => {
 }
 /* Остальные стили без изменений (вернул как было) */
 .screen-2 {
-  background: linear-gradient(180deg, #5a6d63 0%, #54685e 50%, #5c7066 100%);
+  background: linear-gradient(180deg, #ebe2ce 0%, #e1d3b7 50%, #dbcba9 100%);
   min-height: 25vh;
   padding: 5rem 2rem 6rem;
   position: relative;
@@ -422,8 +431,9 @@ const goLogin = () => {
   border-radius: 50%;
 }
 .screen-title {
-  font-size: 1.5rem;
-  font-weight: 600;
+  font-size: 1.75rem;
+  font-weight: 700;
+  font-family: 'Trebuchet MS', 'Segoe UI', sans-serif;
   color: var(--text-dark);
   text-align: center;
   margin: 0 0 2rem;
@@ -432,7 +442,7 @@ const goLogin = () => {
 }
 .screen-2 .screen-title,
 .screen-3 .screen-title {
-  font-size: 1.75rem;
+  font-size: 2.05rem;
   margin: 0 0 4rem;
   text-align: center;
 }
@@ -456,8 +466,8 @@ const goLogin = () => {
   margin-bottom: 1.5rem;
 }
 .screen-2 .step-icon {
-  width: 100px;
-  height: 70px;
+  width: 132px;
+  height: 94px;
   margin: 0 auto;
   display: flex;
   align-items: center;
@@ -468,29 +478,44 @@ const goLogin = () => {
   height: 100%;
   object-fit: contain;
 }
-.wavy-line {
+.connector-line {
   display: none;
   position: absolute;
   top: 50%;
-  width: 40px;
-  height: 4px;
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 4'%3E%3Cpath fill='none' stroke='%234a4a4a' stroke-width='1' d='M0 2q10-2 20 0t20 0'/%3E%3C/svg%3E") no-repeat center;
-  background-size: contain;
+  width: 74px;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(63, 74, 47, 0.25), #3f4a2f, rgba(63, 74, 47, 0.25));
+}
+.connector-line__dot {
+  position: absolute;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #a97c50;
+  box-shadow: 0 0 0 6px rgba(169, 124, 80, 0.2);
 }
 @media (min-width: 640px) {
-  .wavy-line {
+  .connector-line {
     display: block;
   }
-  .wavy-line--left {
-    left: -30px;
+  .connector-line--left {
+    left: -52px;
   }
-  .wavy-line--right {
-    right: -30px;
+  .connector-line--right {
+    right: -52px;
+  }
+  .connector-line--left .connector-line__dot {
+    left: 18px;
+    right: auto;
   }
 }
 .screen-2 .step-text {
-  font-size: 1.05rem;
-  font-weight: 400;
+  font-size: 1.17rem;
+  font-weight: 600;
+  font-family: 'Trebuchet MS', 'Segoe UI', sans-serif;
   color: var(--text-dark);
   margin: 0;
   line-height: 1.45;
@@ -508,7 +533,7 @@ const goLogin = () => {
 }
 /* ========== Третий экран: Почему стоит выбрать нас (шире) ========== */
 .screen-3 {
-  background: linear-gradient(180deg, #4e6158 0%, #51645b 50%, #576a60 100%);
+  background: linear-gradient(180deg, #f0e5cd 0%, #e7d8b7 45%, #e0ccaa 100%);
   padding: 4rem 1.5rem 5rem;
   position: relative;
   overflow: hidden;
@@ -542,7 +567,7 @@ const goLogin = () => {
   color: rgba(255, 255, 255, 0.5);
 }
 .why-intro {
-  font-size: 0.95rem;
+  font-size: 1.05rem;
   font-weight: 400;
   color: var(--text-muted);
   line-height: 1.6;
@@ -570,8 +595,8 @@ const goLogin = () => {
   justify-content: center;
 }
 .q-icon {
-  width: 120px;
-  height: 120px;
+  width: 170px;
+  height: 170px;
   object-fit: contain;
   filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.3));
 }
@@ -592,25 +617,18 @@ const goLogin = () => {
   gap: 1rem;
   margin-bottom: 1.25rem;
 }
-.why-item-bullet {
+.why-item-mark {
   flex-shrink: 0;
-  width: 24px;
-  height: 24px;
-  border: 2px solid rgba(255, 255, 255, 0.7);
-  border-radius: 50%;
-  margin-top: 0.15rem;
-  position: relative;
-}
-.why-item-bullet::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: 10px;
-  height: 10px;
-  border: 2px solid rgba(255, 255, 255, 0.6);
-  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  margin-top: -0.05rem;
+  border-radius: 0.45rem;
+  color: #f8f1e3;
+  background: linear-gradient(145deg, #a97c50, #8f693f);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.82rem;
 }
 .why-item-text {
   font-size: 1rem;
@@ -623,7 +641,7 @@ const goLogin = () => {
 }
 /* ========== Подвал — градиент в той же гамме ========== */
 .footer {
-  background: linear-gradient(180deg, #45564e 0%, #4a5c53 100%);
+  background: linear-gradient(180deg, #364128 0%, #3f4a2f 100%);
   padding: 2rem 1.5rem 1.5rem;
   margin-top: 0;
 }

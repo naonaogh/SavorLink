@@ -85,7 +85,7 @@ const submit = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle at top left, #647c6b 0%, #4b5f54 40%, #3d4e45 100%);
+  background: radial-gradient(circle at top left, #5a6641 0%, #3f4a2f 45%, #343d27 100%);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
     sans-serif;
 }
@@ -95,7 +95,8 @@ const submit = () => {
   max-width: 90vw;
   padding: 2.2rem 2.4rem 2rem;
   border-radius: 1.75rem;
-  background: rgba(33, 42, 37, 0.9);
+  background: rgba(52, 46, 36, 0.9);
+  border: 1px solid rgba(224, 200, 163, 0.35);
   box-shadow: 0 22px 60px rgba(0, 0, 0, 0.5);
   color: #f9fafb;
 }
@@ -177,8 +178,8 @@ const submit = () => {
   height: 42px;
   border-radius: 999px;
   border: none;
-  background: #f9fafb;
-  color: #111827;
+  background: #d8bf98;
+  color: #2e2a23;
   font-size: 1.1rem;
   cursor: pointer;
 }
@@ -188,11 +189,10 @@ const submit = () => {
   border-radius: 999px;
   border: none;
   padding: 0.7rem 1.2rem;
-  background: #f9fafb;
-  color: #111827;
+  background: #d8bf98;
+  color: #2e2a23;
   font-weight: 600;
   font-size: 0.95rem;
   cursor: pointer;
 }
 </style>
-

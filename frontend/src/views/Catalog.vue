@@ -87,7 +87,7 @@ const cartCount = computed(() =>
                 </span>
               </div>
               <p class="supplier-company">{{ supplier.company }}</p>
-              <p class="supplier-location">{{ supplier.location }}</p>
+              <p class="supplier-location">{{ supplier.locations }}</p>
               <p class="supplier-desc">
                 {{ supplier.description }}
               </p>
@@ -106,14 +106,14 @@ const cartCount = computed(() =>
 <style scoped>
 .catalog-page {
   min-height: 100vh;
-  background: #51645b;
+  background: #ebe2ce;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
     sans-serif;
   color: #1a1a1a;
 }
 
 .catalog-header {
-  background: linear-gradient(135deg, #485a50 0%, #51645b 100%);
+  background: linear-gradient(120deg, #364128 0%, #3f4a2f 60%, #4a5638 100%);
   padding: 0.875rem 1.5rem;
   position: sticky;
   top: 0;
@@ -133,7 +133,7 @@ const cartCount = computed(() =>
 .nav-logo {
   font-size: 1.1rem;
   font-weight: 700;
-  color: #e5e7eb;
+  color: #f0e5d1;
   text-decoration: none;
 }
 
@@ -145,7 +145,7 @@ const cartCount = computed(() =>
 }
 
 .nav-link {
-  color: #d1d5db;
+  color: #e7dbc5;
   text-decoration: none;
   font-size: 0.95rem;
   font-weight: 400;
@@ -201,7 +201,7 @@ const cartCount = computed(() =>
 }
 
 .search-submit {
-  background: #111827;
+  background: #3f4a2f;
   color: #ffffff;
 }
 
@@ -219,12 +219,13 @@ const cartCount = computed(() =>
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  background: #f3f4f6;
-  border-radius: 1rem;
-  padding: 1rem 1.1rem 0.9rem;
+  background: #f4ead4;
+  border-radius: 0.35rem;
+  border: 1px solid #ddc8a3;
+  padding: 0.95rem 1rem 0.9rem;
   text-decoration: none;
   color: inherit;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 8px 18px rgba(72, 56, 36, 0.15);
   transition: transform 0.12s ease, box-shadow 0.12s ease;
 }
 
@@ -244,8 +245,8 @@ const cartCount = computed(() =>
   width: 42px;
   height: 42px;
   border-radius: 999px;
-  background: #d1fae5;
-  color: #064e3b;
+  background: #d8bf98;
+  color: #3f4a2f;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -320,7 +321,7 @@ const cartCount = computed(() =>
 
 .supplier-more {
   border: none;
-  background: #111827;
+  background: #3f4a2f;
   color: #ffffff;
   padding: 0.35rem 0.85rem;
   border-radius: 999px;
@@ -332,4 +333,3 @@ const cartCount = computed(() =>
   transform: scale(1.05);
 }
 </style>
-
