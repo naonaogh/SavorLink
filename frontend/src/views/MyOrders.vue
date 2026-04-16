@@ -31,9 +31,57 @@ onMounted(async () => {
     router.push('/')
     return
   }
-  await store.fetchMyOrders()
+  store.state.ordersLoading = true
+  await Promise.all([
+    store.fetchMyOrders(),
+    store.fetchProducts()
+  ])
   store.markOrdersSeen('BUYER')
 })
+
+const showTemplateModal = ref(false)
+const isCheckingOut = ref(false)
+
+const templateItems = computed(() => {
+  if (!store.state.orderTemplate) return []
+  return store.state.orderTemplate.map(item => {
+    const product = store.state.products.find(p => p.id === item.product_id)
+    return {
+      ...item,
+      product
+    }
+  }).filter(item => !!item.product)
+})
+
+const templateTotal = computed(() => {
+  return templateItems.value.reduce((sum, item) => {
+    return sum + (item.product?.price || 0) * item.quantity
+  }, 0)
+})
+
+const handleCheckoutTemplate = async () => {
+  if (isCheckingOut.value) return
+  isCheckingOut.value = true
+  try {
+    const result = await store.checkoutWithItems(store.state.orderTemplate || [])
+    if (result.orders.length > 0) {
+      successMsg.value = `Шаблон успешно оформлен! Создано заказов: ${result.orders.length}`
+      showTemplateModal.value = false
+      setTimeout(() => { successMsg.value = null }, 5000)
+    }
+  } catch (err: any) {
+    errorMsg.value = err.message || 'Ошибка при оформлении шаблона'
+  } finally {
+    isCheckingOut.value = false
+  }
+}
+
+const handleDeleteTemplate = () => {
+  if (confirm('Вы уверены, что хотите удалить этот шаблон?')) {
+    store.deleteOrderTemplate()
+    showTemplateModal.value = false
+  }
+}
 
 const statusLabel: Record<string, { text: string; icon: string; class: string }> = {
   CREATED: { text: 'На рассмотрении', icon: '⏳', class: 'status-created' },
@@ -92,7 +140,16 @@ const markDelivered = async (orderId: number) => {
           <h1 class="page-title">Мои заказы</h1>
           <NotificationBell :count="unreadCount" />
         </div>
-        <p class="page-count" v-if="!isLoading">Всего: {{ orders.length }}</p>
+        <div class="header-actions">
+          <button 
+            v-if="store.state.orderTemplate" 
+            class="btn-use-template" 
+            @click="showTemplateModal = true"
+          >
+            📝 Использовать шаблон
+          </button>
+          <p class="page-count" v-if="!isLoading">Всего заказов: {{ orders.length }}</p>
+        </div>
       </div>
 
       <!-- Toast -->
@@ -192,6 +249,53 @@ const markDelivered = async (orderId: number) => {
         </div>
       </div>
     </main>
+
+    <!-- Template Modal -->
+    <Transition name="modal">
+      <div v-if="showTemplateModal" class="modal-overlay" @click.self="showTemplateModal = false">
+        <div class="modal-template">
+          <button class="btn-close-modal" @click="showTemplateModal = false">✕</button>
+          <h2 class="modal-title">Ваш шаблон заказа</h2>
+          
+          <div class="template-items-list">
+            <div v-for="item in templateItems" :key="item.product_id" class="template-item-card">
+              <div class="t-item-icon">🌿</div>
+              <div class="t-item-main">
+                <div class="t-item-top">
+                  <span class="t-item-name">{{ item.product?.name }}</span>
+                  <span class="t-item-category" v-if="item.product?.category">{{ item.product.category.name }}</span>
+                </div>
+                <div class="t-item-details">
+                  <span class="t-item-supplier" v-if="item.product?.enterprise">🏢 {{ item.product.enterprise.short_name }}</span>
+                  <span class="t-item-qty">{{ item.quantity }} кг × {{ item.product?.price }} ₽</span>
+                </div>
+              </div>
+              <div class="t-item-subtotal">
+                {{ ((item.product?.price || 0) * item.quantity).toFixed(0) }} ₽
+              </div>
+            </div>
+          </div>
+
+          <div class="template-footer">
+            <div class="template-total">
+              <span>Итого по шаблону</span>
+              <span class="t-total-val">{{ templateTotal.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') }} ₽</span>
+            </div>
+            
+            <div class="template-actions">
+              <button class="btn-checkout-template" @click="handleCheckoutTemplate" :disabled="isCheckingOut">
+                <span v-if="isCheckingOut" class="spinner-sm"></span>
+                {{ isCheckingOut ? 'Оформление...' : 'Оформить по шаблону' }}
+              </button>
+              <button class="btn-delete-template" @click="handleDeleteTemplate">
+                🗑️ Удалить шаблон
+              </button>
+            </div>
+            <p class="template-hint">* Цены соответствуют текущим в каталоге</p>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -229,9 +333,17 @@ const markDelivered = async (orderId: number) => {
   gap: 1rem;
 }
 
+.header-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
 .page-count {
   color: #6b7280;
   font-weight: 500;
+  font-size: 0.9rem;
 }
 
 /* Toast */
@@ -479,4 +591,255 @@ const markDelivered = async (orderId: number) => {
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Template Styling */
+.btn-use-template {
+  background: white;
+  color: #3f4a2f;
+  border: 1px solid #e5e7eb;
+  padding: 0.6rem 1.25rem;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+}
+
+.btn-use-template:hover {
+  background: #fdfdfd;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 15px rgba(0,0,0,0.08);
+  border-color: #3f4a2f;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(30, 25, 15, 0.7);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 1rem;
+}
+
+.modal-template {
+  background: #fdfaf3;
+  border-radius: 32px;
+  padding: 3rem 2.5rem;
+  max-width: 600px;
+  width: 100%;
+  box-shadow: 0 30px 70px rgba(0,0,0,0.25);
+  position: relative;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.btn-close-modal {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+  background: #f1f5f9;
+  border: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  cursor: pointer;
+  color: #64748b;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.btn-close-modal:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+  transform: rotate(90deg);
+}
+
+.modal-title {
+  font-size: 1.85rem;
+  font-weight: 900;
+  color: #3f4a2f;
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.template-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  overflow-y: auto;
+  padding: 0.5rem;
+}
+
+.template-item-card {
+  background: white;
+  border-radius: 18px;
+  padding: 1.25rem;
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  gap: 1rem;
+  align-items: center;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.t-item-icon {
+  width: 48px;
+  height: 48px;
+  background: #f1f5f9;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+}
+
+.t-item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.t-item-top {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.t-item-name {
+  font-weight: 800;
+  color: #111827;
+  font-size: 1rem;
+}
+
+.t-item-category {
+  font-size: 0.75rem;
+  color: #3f4a2f;
+  background: #ecf3e6;
+  padding: 0.1rem 0.5rem;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+.t-item-details {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  color: #6b7280;
+}
+
+.t-item-supplier { font-weight: 600; }
+.t-item-qty { font-weight: 500; }
+
+.t-item-subtotal {
+  font-weight: 900;
+  color: #3f4a2f;
+  font-size: 1.1rem;
+}
+
+.template-footer {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 1.5rem;
+}
+
+.template-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 1.5rem;
+}
+
+.template-total span:first-child {
+  font-weight: 700;
+  color: #6b7280;
+}
+
+.t-total-val {
+  font-size: 1.75rem;
+  font-weight: 900;
+  color: #059669;
+}
+
+.template-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.btn-checkout-template {
+  background: #3f4a2f;
+  color: #fff;
+  border: none;
+  padding: 1.15rem;
+  border-radius: 16px;
+  font-size: 1rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 8px 25px rgba(63, 74, 47, 0.2);
+}
+
+.btn-checkout-template:hover:not(:disabled) {
+  background: #4a5638;
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px rgba(63, 74, 47, 0.3);
+}
+
+.btn-delete-template {
+  background: #fee2e2;
+  color: #991b1b;
+  border: none;
+  padding: 1.15rem;
+  border-radius: 16px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-delete-template:hover {
+  background: #fecaca;
+  color: #7f1d1d;
+}
+
+.template-hint {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  text-align: center;
+  margin: 0;
+  font-weight: 500;
+}
+
+.modal-enter-active { animation: pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.modal-leave-active { transition: opacity 0.3s, transform 0.3s; }
+.modal-leave-to { opacity: 0; transform: scale(0.9); }
+
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.6) translateY(20px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.spinner-sm {
+  width: 18px;
+  height: 18px;
+  border: 2px solid white;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  display: inline-block;
+}
 </style>

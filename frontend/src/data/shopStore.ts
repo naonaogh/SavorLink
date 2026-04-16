@@ -86,6 +86,7 @@ const state = reactive({
   supplierOrders: [] as Order[],
   ordersLoading: false,
   lastSeenOrderId: Number(localStorage.getItem('lastCheckedOrderId') || 0),
+  orderTemplate: JSON.parse(localStorage.getItem('orderTemplate') || 'null') as { product_id: number; quantity: number }[] | null,
 })
 
 export function useShopStore() {
@@ -480,5 +481,66 @@ export function useShopStore() {
     fetchSupplierOrders,
     updateOrderStatus,
     markOrdersSeen,
+    saveOrderTemplate: () => {
+      const template = state.cartItems.map((item) => ({
+        product_id: item.product_id,
+        quantity: item.quantity,
+      }))
+      state.orderTemplate = template
+      localStorage.setItem('orderTemplate', JSON.stringify(template))
+    },
+    deleteOrderTemplate: () => {
+      state.orderTemplate = null
+      localStorage.setItem('orderTemplate', 'null')
+    },
+    checkoutWithItems: async (items: { product_id: number; quantity: number }[]): Promise<CheckoutResult> => {
+      const token = localStorage.getItem('token')
+      if (!token || items.length === 0) return { orders: [] }
+
+      // Group items by supplier enterprise.
+      // We need to fetch product details to know the supplier.
+      // Since we already have products in state, we can use them.
+      const groups: Map<number, { product_id: number; quantity: number }[]> = new Map()
+      for (const item of items) {
+        const product = state.products.find(p => p.id === item.product_id)
+        if (!product) {
+          // If product not in local state, we might need to fetch it, 
+          // but for order templates created from current cart, it should be there.
+          throw new Error(`Product ${item.product_id} not found`)
+        }
+        const supplierId = product.enterprise?.id
+        if (!supplierId) {
+          throw new Error(`Product ${item.product_id} has no supplier`)
+        }
+        if (!groups.has(supplierId)) groups.set(supplierId, [])
+        groups.get(supplierId)!.push(item)
+      }
+
+      const createdOrders: Order[] = []
+      for (const [supplierId, groupItems] of groups) {
+        const payload = {
+          seller_enterprise_id: supplierId,
+          items: groupItems.map((i) => ({ product_id: i.product_id, quantity: i.quantity })),
+        }
+        try {
+          const res = await api.post('/orders', payload)
+          createdOrders.push(mapOrder(res.data))
+        } catch (err: any) {
+          if (err.response?.status === 400 && err.response?.data?.detail?.includes('enterprise')) {
+            throw new Error('Для оформления заказа необходимо привязать предприятие в профиле.')
+          }
+          throw err
+        }
+      }
+
+      // If we are checking out from a template/specific items, we don't necessarily clear the whole cart,
+      // but the user's request implies the template IS the order.
+      // Usually, after placing an order from template, the cart is cleared or remains.
+      // To keep it simple, let's clear the cart after any successful checkout if it matches current cart.
+      // Or just clear it anyway as per current behavior of checkoutCart.
+      await api.post('/cart/me/clear')
+      await fetchCart()
+      return { orders: createdOrders }
+    },
   }
 }

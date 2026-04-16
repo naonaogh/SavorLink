@@ -15,13 +15,37 @@ const orderSuccess = ref(false)
 const orderError = ref<string | null>(null)
 const orderId = ref<number | null>(null)
 const createdOrdersCount = ref(0)
+const showTemplateModal = ref(false)
+const successMsg = ref<string | null>(null)
+
+const templateItems = computed(() => {
+  if (!store.state.orderTemplate) return []
+  return store.state.orderTemplate.map(item => {
+    const product = store.state.products.find(p => p.id === item.product_id)
+    return {
+      ...item,
+      product
+    }
+  }).filter(item => !!item.product)
+})
+
+const templateTotal = computed(() => {
+  return templateItems.value.reduce((sum, item) => {
+    return sum + (item.product?.price || 0) * item.quantity
+  }, 0)
+})
 
 onMounted(async () => {
   if (!authStore.token) {
     router.push('/login')
     return
   }
-  await store.fetchCart()
+  isLoading.value = true
+  await Promise.all([
+    store.fetchCart(),
+    store.fetchProducts()
+  ])
+  isLoading.value = false
 })
 
 const cartItems = computed(() => store.state.cartItems)
@@ -78,6 +102,32 @@ const closeSuccess = () => {
   createdOrdersCount.value = 0
   router.push('/my-orders')
 }
+
+const handleCreateTemplate = () => {
+  store.saveOrderTemplate()
+  successMsg.value = 'Ваш шаблон создан, вы можете использовать его на странице мои заказы'
+  setTimeout(() => { successMsg.value = null }, 6000)
+}
+
+const handleCheckoutTemplate = async () => {
+  if (isCheckingOut.value) return
+  orderError.value = null
+  isCheckingOut.value = true
+  try {
+    const result = await store.checkoutWithItems(store.state.orderTemplate || [])
+    const firstOrder = result.orders[0]
+    if (firstOrder) {
+      orderId.value = firstOrder.id
+      createdOrdersCount.value = result.orders.length
+      orderSuccess.value = true
+      showTemplateModal.value = false
+    }
+  } catch (err: any) {
+    orderError.value = err.message || 'Ошибка при оформлении заказа из шаблона'
+  } finally {
+    isCheckingOut.value = false
+  }
+}
 </script>
 
 <template>
@@ -86,6 +136,18 @@ const closeSuccess = () => {
 
     <main class="page-main">
       <h1 class="page-title">Корзина</h1>
+
+      <!-- Template notification toast -->
+      <Transition name="toast">
+        <div v-if="successMsg" class="template-toast">
+          <span class="t-icon">✨</span>
+          <div class="t-content">
+            <p>{{ successMsg }}</p>
+            <router-link to="/my-orders" class="t-link">Перейти к заказам →</router-link>
+          </div>
+          <button @click="successMsg = null" class="t-close">✕</button>
+        </div>
+      </Transition>
 
       <div v-if="isLoading" class="status-msg">Загрузка корзины...</div>
 
@@ -151,6 +213,23 @@ const closeSuccess = () => {
             <span v-if="isCheckingOut" class="spinner"></span>
             {{ isCheckingOut ? 'Оформление...' : 'Оформить заказ' }}
           </button>
+
+          <button 
+            class="btn-save-template" 
+            @click="handleCreateTemplate"
+            v-if="cartItems.length > 0"
+          >
+            📂 Создать шаблон заказа
+          </button>
+
+          <button 
+            class="btn-use-template" 
+            @click="showTemplateModal = true"
+            v-if="store.state.orderTemplate"
+          >
+            📝 Использовать шаблон
+          </button>
+
           <router-link to="/catalog" class="btn-continue">
             ← Продолжить покупки
           </router-link>
@@ -161,6 +240,7 @@ const closeSuccess = () => {
     <!-- Success Modal -->
     <Transition name="modal">
       <div v-if="orderSuccess" class="modal-overlay" @click.self="closeSuccess">
+        <!-- ... (existing success modal content) ... -->
         <div class="modal-success">
           <div class="success-icon">✨</div>
           <h2 class="success-title">Заказ оформлен!</h2>
@@ -181,6 +261,48 @@ const closeSuccess = () => {
             <router-link to="/catalog" class="btn-continue-shopping" @click="orderSuccess = false">
               Продолжить покупки
             </router-link>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Template Modal -->
+    <Transition name="modal">
+      <div v-if="showTemplateModal" class="modal-overlay" @click.self="showTemplateModal = false">
+        <div class="modal-template">
+          <button class="btn-close-modal" @click="showTemplateModal = false">✕</button>
+          <h2 class="modal-title">Ваш шаблон заказа</h2>
+          
+          <div class="template-items-list">
+            <div v-for="item in templateItems" :key="item.product_id" class="template-item-card">
+              <div class="t-item-icon">🌿</div>
+              <div class="t-item-main">
+                <div class="t-item-top">
+                  <span class="t-item-name">{{ item.product?.name }}</span>
+                  <span class="t-item-category" v-if="item.product?.category">{{ item.product.category.name }}</span>
+                </div>
+                <div class="t-item-details">
+                  <span class="t-item-supplier" v-if="item.product?.enterprise">🏢 {{ item.product.enterprise.short_name }}</span>
+                  <span class="t-item-qty">{{ item.quantity }} кг × {{ item.product?.price }} ₽</span>
+                </div>
+              </div>
+              <div class="t-item-subtotal">
+                {{ ((item.product?.price || 0) * item.quantity).toFixed(0) }} ₽
+              </div>
+            </div>
+          </div>
+
+          <div class="template-footer">
+            <div class="template-total">
+              <span>Итого по шаблону</span>
+              <span class="t-total-val">{{ templateTotal.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') }} ₽</span>
+            </div>
+            
+            <button class="btn-checkout-template" @click="handleCheckoutTemplate" :disabled="isCheckingOut">
+              <span v-if="isCheckingOut" class="spinner"></span>
+              {{ isCheckingOut ? 'Оформление...' : 'Оформить по шаблону' }}
+            </button>
+            <p class="template-hint">* Цены соответствуют текущим в каталоге</p>
           </div>
         </div>
       </div>
@@ -610,6 +732,262 @@ const closeSuccess = () => {
 
 .btn-continue-shopping:hover {
   color: #3f4a2f;
+}
+
+.btn-save-template {
+  width: 100%;
+  background: white;
+  color: #3f4a2f;
+  border: 2px dashed #3f4a2f;
+  padding: 1rem;
+  border-radius: 18px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.btn-save-template:hover {
+  background: #f8faf6;
+  border-style: solid;
+  transform: translateY(-1px);
+}
+
+.btn-use-template {
+  width: 100%;
+  background: #ecf3e6;
+  color: #3f4a2f;
+  border: none;
+  padding: 1rem;
+  border-radius: 18px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.btn-use-template:hover {
+  background: #dbe7d1;
+  transform: translateY(-1px);
+}
+
+/* Template Modal */
+.modal-template {
+  background: #fdfaf3;
+  border-radius: 32px;
+  padding: 3rem 2.5rem;
+  max-width: 600px;
+  width: 100%;
+  box-shadow: 0 30px 70px rgba(0,0,0,0.25);
+  position: relative;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.template-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  overflow-y: auto;
+  padding: 0.5rem;
+}
+
+.template-item-card {
+  background: white;
+  border-radius: 18px;
+  padding: 1.25rem;
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  gap: 1rem;
+  align-items: center;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.t-item-icon {
+  width: 48px;
+  height: 48px;
+  background: #f1f5f9;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+}
+
+.t-item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.t-item-top {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.t-item-name {
+  font-weight: 800;
+  color: #111827;
+  font-size: 1rem;
+}
+
+.t-item-category {
+  font-size: 0.75rem;
+  color: #3f4a2f;
+  background: #ecf3e6;
+  padding: 0.1rem 0.5rem;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+.t-item-details {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  color: #6b7280;
+}
+
+.t-item-supplier {
+  font-weight: 600;
+}
+
+.t-item-qty {
+  font-weight: 500;
+}
+
+.t-item-subtotal {
+  font-weight: 900;
+  color: #3f4a2f;
+  font-size: 1.1rem;
+}
+
+.template-toast {
+  background: white;
+  border-radius: 20px;
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 15px 40px rgba(63, 74, 47, 0.15);
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  margin-bottom: 2.5rem;
+  border-left: 6px solid #3f4a2f;
+  position: relative;
+  animation: slide-in 0.4s ease;
+}
+
+.t-content p {
+  margin: 0;
+  font-weight: 600;
+  color: #374151;
+  font-size: 0.95rem;
+}
+
+.t-link {
+  display: inline-block;
+  color: #3f4a2f;
+  font-weight: 800;
+  font-size: 0.85rem;
+  text-decoration: none;
+  margin-top: 0.5rem;
+  border-bottom: 1px solid transparent;
+  transition: all 0.2s;
+}
+
+.t-link:hover {
+  border-color: #3f4a2f;
+  transform: translateX(4px);
+}
+
+.t-close {
+  background: transparent;
+  border: none;
+  font-size: 1.1rem;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 0.5rem;
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+}
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.toast-enter-active { animation: slide-in 0.4s ease; }
+.toast-leave-active { transition: all 0.3s ease; opacity: 0; transform: translateY(-10px); }
+
+.template-footer {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 1.5rem;
+}
+
+.template-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 1.5rem;
+}
+
+.template-total span:first-child {
+  font-weight: 700;
+  color: #6b7280;
+}
+
+.t-total-val {
+  font-size: 1.75rem;
+  font-weight: 900;
+  color: #059669;
+}
+
+.btn-checkout-template {
+  width: 100%;
+  background: #3f4a2f;
+  color: #fff;
+  border: none;
+  padding: 1.25rem;
+  border-radius: 18px;
+  font-size: 1.1rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-bottom: 1rem;
+  box-shadow: 0 8px 25px rgba(63, 74, 47, 0.2);
+}
+
+.btn-checkout-template:hover:not(:disabled) {
+  background: #4a5638;
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px rgba(63, 74, 47, 0.3);
+}
+
+.btn-checkout-template:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.template-hint {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  text-align: center;
+  margin: 0;
+  font-weight: 500;
 }
 
 .modal-enter-active { animation: pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
