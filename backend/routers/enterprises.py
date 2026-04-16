@@ -7,9 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database.database import get_session
 from backend.database.schemas.enterprise import EnterpriseCreate, EnterpriseRead, EnterpriseUpdate
+from backend.database.schemas.review import EnterpriseReviewCreate, EnterpriseReviewRead
 from backend.services.enterprise_service import EnterpriseService
 from backend.routers.deps import get_current_user
-from backend.database.models import User, UserRole
+from backend.database.models import User, UserRole, EnterpriseReview
 from fastapi import HTTPException
 
 
@@ -84,4 +85,63 @@ async def delete_enterprise(
     await service.delete_enterprise(session, enterprise_id)
     await session.commit()
     return None
+
+
+@router.post("/{enterprise_id}/reviews", response_model=EnterpriseReviewRead)
+async def create_enterprise_review(
+    enterprise_id: int,
+    payload: EnterpriseReviewCreate,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.role != UserRole.BUYER:
+        raise HTTPException(status_code=403, detail="Только покупатели могут оставлять отзывы")
+    
+    # Проверяем, не оставлял ли уже отзыв
+    from sqlalchemy import select
+    existing_stmt = select(EnterpriseReview).where(
+        EnterpriseReview.author_user_id == current_user.id,
+        EnterpriseReview.target_enterprise_id == enterprise_id
+    )
+    existing_res = await session.execute(existing_stmt)
+    if existing_res.scalars().first():
+        raise HTTPException(status_code=400, detail="Вы уже оставляли отзыв об этом поставщике")
+    
+    review = EnterpriseReview(
+        author_user_id=current_user.id,
+        target_enterprise_id=enterprise_id,
+        rating=payload.rating,
+        comment=payload.comment
+    )
+    session.add(review)
+    await session.commit()
+    
+    # Релоад со всеми связями для корректной сериализации Pydantic
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+    stmt = select(EnterpriseReview).where(EnterpriseReview.id == review.id).options(
+        selectinload(EnterpriseReview.author_user),
+        selectinload(EnterpriseReview.target_enterprise)
+    )
+    res = await session.execute(stmt)
+    return res.scalar_one()
+
+
+@router.get("/{enterprise_id}/reviews", response_model=List[EnterpriseReviewRead])
+async def list_enterprise_reviews(
+    enterprise_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+    
+    stmt = select(EnterpriseReview).where(
+        EnterpriseReview.target_enterprise_id == enterprise_id
+    ).options(
+        selectinload(EnterpriseReview.author_user),
+        selectinload(EnterpriseReview.target_enterprise)
+    ).order_by(EnterpriseReview.created_at.desc())
+    
+    res = await session.execute(stmt)
+    return res.scalars().all()
 

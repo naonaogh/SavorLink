@@ -8,6 +8,7 @@ from sqlalchemy import (
     DateTime,
     Numeric,
     CheckConstraint,
+    UniqueConstraint,
     Index,
     Computed,
     Table,
@@ -98,12 +99,7 @@ class Enterprise(Base):
         lazy="selectin"
     )
 
-    reviews_as_author = relationship(
-        "EnterpriseReview",
-        foreign_keys="EnterpriseReview.author_enterprise_id",
-        back_populates="author_enterprise",
-        lazy="selectin"
-    )
+
     reviews_as_target = relationship(
         "EnterpriseReview",
         foreign_keys="EnterpriseReview.target_enterprise_id",
@@ -329,7 +325,7 @@ class EnterpriseReview(Base):
     __tablename__ = "enterprise_reviews"
 
     id = Column(BigInteger, primary_key=True)
-    author_enterprise_id = Column(BigInteger, ForeignKey("enterprises.id"), nullable=False)
+    author_user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False)
     target_enterprise_id = Column(BigInteger, ForeignKey("enterprises.id"), nullable=False)
 
     rating = Column(Integer, nullable=False)
@@ -338,18 +334,16 @@ class EnterpriseReview(Base):
 
     __table_args__ = (
         CheckConstraint("rating BETWEEN 1 AND 5"),
+        UniqueConstraint("author_user_id", "target_enterprise_id", name="uq_author_target_review"),
     )
 
-    author_enterprise = relationship(
-        "Enterprise",
-        foreign_keys=[author_enterprise_id],
-        back_populates="reviews_as_author"
-    )
+    author_user = relationship("User", lazy="selectin")
 
     target_enterprise = relationship(
         "Enterprise",
         foreign_keys=[target_enterprise_id],
-        back_populates="reviews_as_target"
+        back_populates="reviews_as_target",
+        lazy="selectin"
     )
 
 
@@ -366,6 +360,7 @@ class ProductReview(Base):
 
     __table_args__ = (
         CheckConstraint("rating BETWEEN 1 AND 5"),
+        UniqueConstraint("author_enterprise_id", "product_id", name="uq_author_product_review"),
     )
 
     author_enterprise = relationship("Enterprise", back_populates="product_reviews")

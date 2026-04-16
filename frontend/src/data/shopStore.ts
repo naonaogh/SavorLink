@@ -33,6 +33,7 @@ export interface Supplier {
   since?: string
   minOrder?: string
   delivery?: string
+  reviews_list?: any[]
 }
 
 export interface CartItem {
@@ -87,6 +88,8 @@ const state = reactive({
   ordersLoading: false,
   lastSeenOrderId: Number(localStorage.getItem('lastCheckedOrderId') || 0),
   orderTemplate: JSON.parse(localStorage.getItem('orderTemplate') || 'null') as { product_id: number; quantity: number }[] | null,
+  comparisonSupplierIds: [] as number[],
+  supplierReviews: [] as any[],
 })
 
 export function useShopStore() {
@@ -541,6 +544,44 @@ export function useShopStore() {
       await api.post('/cart/me/clear')
       await fetchCart()
       return { orders: createdOrders }
+    },
+    fetchSupplierReviews: async (id: number) => {
+      try {
+        const res = await api.get(`/enterprises/${id}/reviews`)
+        state.supplierReviews = res.data
+      } catch (err) {
+        console.error('Ошибка загрузки отзывов:', err)
+      }
+    },
+    submitReview: async (id: number, rating: number, comment: string) => {
+      try {
+        await api.post(`/enterprises/${id}/reviews`, {
+          target_enterprise_id: id,
+          rating,
+          comment
+        })
+        // Refresh supplier details to update average rating and the review list
+        const detailRes = await api.get(`/enterprises/${id}`)
+        state.currentSupplier = mapSupplier(detailRes.data)
+        const reviewsRes = await api.get(`/enterprises/${id}/reviews`)
+        state.supplierReviews = reviewsRes.data
+      } catch (err: any) {
+        throw err
+      }
+    },
+    toggleComparison: (id: number) => {
+      const idx = state.comparisonSupplierIds.indexOf(id)
+      if (idx === -1) {
+        if (state.comparisonSupplierIds.length >= 4) {
+          throw new Error('Максимум 4 поставщика для сравнения')
+        }
+        state.comparisonSupplierIds.push(id)
+      } else {
+        state.comparisonSupplierIds.splice(idx, 1)
+      }
+    },
+    clearComparison: () => {
+      state.comparisonSupplierIds = []
     },
   }
 }

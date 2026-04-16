@@ -14,6 +14,7 @@ const supplierId = computed(() => Number(route.params.id))
 onMounted(() => {
   if (supplierId.value) {
     store.fetchSupplierDetail(supplierId.value)
+    store.fetchSupplierReviews(supplierId.value)
   }
 })
 
@@ -50,6 +51,48 @@ const modalTotal = computed(() => {
   if (!selectedProduct.value) return 0
   return (selectedProduct.value.price * quantity.value).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
 })
+
+// Review Logic
+const showReviewModal = ref(false)
+const showReviews = ref(false)
+const ratingValue = ref(5)
+const reviewComment = ref('')
+const submittingReview = ref(false)
+
+const handleOpenReviewModal = () => {
+  ratingValue.value = 5
+  reviewComment.value = ''
+  showReviewModal.value = true
+}
+
+const toggleReviews = () => {
+  showReviews.value = !showReviews.value
+}
+
+const handleSubmitReview = async () => {
+  if (submittingReview.value) return
+  submittingReview.value = true
+  try {
+    await store.submitReview(supplierId.value, ratingValue.value, reviewComment.value)
+    showReviewModal.value = false
+    showReviews.value = true // Show reviews after posting
+    alert('Ваш отзыв успешно опубликован!')
+  } catch (err: any) {
+    alert('Ошибка при отправке отзыва: ' + (err.response?.data?.detail || err.message))
+  } finally {
+    submittingReview.value = false
+  }
+}
+
+const isBuyer = computed(() => authStore.user?.role === 'BUYER')
+
+const formatDate = (dateStr: string) => {
+  return new Date(dateStr).toLocaleDateString('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  })
+}
 </script>
 
 <template>
@@ -81,11 +124,55 @@ const modalTotal = computed(() => {
                 <span class="stat-item">📅 На SavorLink с {{ supplier.since }} года</span>
               </div>
             </div>
-            <button class="btn-favorite-large" @click="store.toggleFavoriteSupplier(supplier)">
-              {{ store.isSupplierFavorite(supplier.id) ? '❤️ В избранном' : '🤍 В избранное' }}
-            </button>
+            <div class="header-actions">
+              <button 
+                v-if="isBuyer" 
+                class="btn-action-outline btn-rate" 
+                @click="handleOpenReviewModal"
+              >
+                ⭐ Оценить поставщика
+              </button>
+              <button class="btn-favorite-large" @click="store.toggleFavoriteSupplier(supplier)">
+                {{ store.isSupplierFavorite(supplier.id) ? '❤️ В избранном' : '🤍 В избранное' }}
+              </button>
+            </div>
           </div>
           <p class="supplier-description-text">{{ supplier.description }}</p>
+          
+          <div class="supplier-header-footer">
+            <button class="btn-toggle-reviews" @click="toggleReviews">
+              {{ showReviews ? '🔼 Скрыть отзывы' : '🔽 Просмотреть отзывы' }}
+            </button>
+          </div>
+
+          <!-- Reviews Section (Expandable) -->
+          <Transition name="expand">
+            <div v-if="showReviews" class="reviews-section">
+              <div class="reviews-header">
+                <h3>Отзывы покупателей ({{ store.state.supplierReviews.length }})</h3>
+              </div>
+              <div v-if="store.state.supplierReviews.length === 0" class="no-reviews">
+                Отзывов пока нет. Будьте первым!
+              </div>
+              <div v-else class="reviews-list">
+                <div v-for="review in store.state.supplierReviews" :key="review.id" class="review-item">
+                  <div class="review-top">
+                    <div class="author-info">
+                      <div class="author-avatar">{{ review.author_user?.email?.charAt(0).toUpperCase() || 'П' }}</div>
+                      <div>
+                        <div class="author-name">Покупатель #{{ review.author_user_id }}</div>
+                        <div class="review-date">{{ formatDate(review.created_at) }}</div>
+                      </div>
+                    </div>
+                    <div class="review-rating">
+                      <span v-for="i in 5" :key="i" class="star" :class="{ filled: i <= review.rating }">★</span>
+                    </div>
+                  </div>
+                  <p class="review-text">{{ review.comment }}</p>
+                </div>
+              </div>
+            </div>
+          </Transition>
         </section>
 
         <!-- Product Grid -->
@@ -198,6 +285,52 @@ const modalTotal = computed(() => {
                   {{ authStore.token ? 'Добавить в корзину' : 'Войдите для заказа' }}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Review Modal -->
+    <Transition name="fade">
+      <div v-if="showReviewModal" class="modal-overlay" @click.self="showReviewModal = false">
+        <div class="modal-card modal-review">
+          <button class="btn-close" @click="showReviewModal = false">×</button>
+          <div class="review-modal-content">
+            <h2 class="review-modal-title">Оценить поставщика</h2>
+            <p class="review-modal-subtitle">Поделитесь вашим опытом работы с {{ supplier?.name }}</p>
+            
+            <div class="star-rating-selector">
+              <span 
+                v-for="i in 5" 
+                :key="i" 
+                class="big-star" 
+                :class="{ active: i <= ratingValue }"
+                @click="ratingValue = i"
+              >
+                ★
+              </span>
+              <div class="rating-label">{{ ratingValue }} из 5 звезд</div>
+            </div>
+
+            <div class="comment-field">
+              <label>Ваш отзыв</label>
+              <textarea 
+                v-model="reviewComment" 
+                placeholder="Расскажите подробнее о качестве продукции и доставки..."
+                rows="4"
+              ></textarea>
+            </div>
+
+            <div class="modal-review-actions">
+              <button class="btn-cancel" @click="showReviewModal = false">Отмена</button>
+              <button 
+                class="btn-submit-review" 
+                @click="handleSubmitReview" 
+                :disabled="submittingReview"
+              >
+                {{ submittingReview ? 'Отправка...' : 'Опубликовать отзыв' }}
+              </button>
             </div>
           </div>
         </div>
@@ -319,7 +452,245 @@ const modalTotal = computed(() => {
   line-height: 1.65;
   color: #4b5563;
   font-size: 0.95rem;
+  margin: 0 0 1.5rem;
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.btn-action-outline {
+  background: transparent;
+  border: 2px solid #3f4a2f;
+  color: #3f4a2f;
+  padding: 0.6rem 1.25rem;
+  border-radius: 0.5rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-action-outline:hover {
+  background: #3f4a2f;
+  color: #fff;
+}
+
+.supplier-header-footer {
+  margin-top: 1.5rem;
+  border-top: 1px solid #e0d6c7;
+  padding-top: 1rem;
+}
+
+.btn-toggle-reviews {
+  background: none;
+  border: none;
+  color: #8b7355;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-toggle-reviews:hover {
+  color: #3f4a2f;
+}
+
+/* Reviews Section */
+.reviews-section {
+  overflow: hidden;
+  margin-top: 1rem;
+}
+
+.reviews-header h3 {
+  font-size: 1.1rem;
+  color: #1f2937;
+  margin-bottom: 1.25rem;
+}
+
+.no-reviews {
+  padding: 1.5rem;
+  background: rgba(255,255,255,0.3);
+  border-radius: 0.75rem;
+  text-align: center;
+  color: #6b7280;
+  font-style: italic;
+}
+
+.reviews-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.review-item {
+  background: white;
+  padding: 1.25rem;
+  border-radius: 1rem;
+  border: 1px solid #f1f5f9;
+}
+
+.review-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+}
+
+.author-info {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.author-avatar {
+  width: 36px;
+  height: 36px;
+  background: #f1f5f9;
+  color: #64748b;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.author-name {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.review-date {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.review-rating {
+  color: #cbd5e1;
+}
+
+.star.filled {
+  color: #f59e0b;
+}
+
+.review-text {
+  font-size: 0.92rem;
+  color: #475569;
+  line-height: 1.5;
   margin: 0;
+}
+
+/* Review Modal */
+.modal-review {
+  max-width: 500px !important;
+}
+
+.review-modal-content {
+  padding: 2.5rem 2rem;
+  text-align: center;
+}
+
+.review-modal-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #1e293b;
+  margin-bottom: 0.5rem;
+}
+
+.review-modal-subtitle {
+  font-size: 0.95rem;
+  color: #64748b;
+  margin-bottom: 2rem;
+}
+
+.star-rating-selector {
+  margin-bottom: 2rem;
+}
+
+.big-star {
+  font-size: 2.5rem;
+  color: #e2e8f0;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: inline-block;
+  margin: 0 0.1rem;
+}
+
+.big-star:hover, .big-star.active {
+  color: #f59e0b;
+  transform: scale(1.1);
+}
+
+.rating-label {
+  margin-top: 0.5rem;
+  font-weight: 700;
+  color: #f59e0b;
+}
+
+.comment-field {
+  text-align: left;
+  margin-bottom: 2rem;
+}
+
+.comment-field label {
+  display: block;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #475569;
+  margin-bottom: 0.5rem;
+}
+
+.comment-field textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  font-size: 0.95rem;
+  resize: vertical;
+}
+
+.modal-review-actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.btn-cancel {
+  flex: 1;
+  background: #f1f5f9;
+  border: none;
+  padding: 0.85rem;
+  border-radius: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-submit-review {
+  flex: 2;
+  background: #3f4a2f;
+  color: white;
+  border: none;
+  padding: 0.85rem;
+  border-radius: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-submit-review:disabled {
+  opacity: 0.5;
+}
+
+/* Expand Animation */
+.expand-enter-active, .expand-leave-active {
+  transition: all 0.4s ease-in-out;
+  max-height: 1000px;
+}
+.expand-enter-from, .expand-leave-to {
+  max-height: 0;
+  opacity: 0;
 }
 
 .section-title {

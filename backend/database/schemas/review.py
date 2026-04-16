@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, field_validator, ConfigDict
-from .enterprise import EnterpriseShort
+from .enterprise import EnterpriseShort, UserShort
 from .product import ProductShort
 
 
@@ -32,12 +32,12 @@ class EnterpriseReviewCreate(BaseModel):
 class EnterpriseReviewRead(BaseModel):
     """Схема для чтения отзыва о предприятии."""
     id: int
-    author_enterprise_id: int
+    author_user_id: int
     target_enterprise_id: int
     rating: int
     comment: Optional[str] = None
     created_at: datetime
-    author_enterprise: Optional[EnterpriseShort] = None
+    author_user: Optional[UserShort] = None
     target_enterprise: Optional[EnterpriseShort] = None
 
     model_config = ConfigDict(from_attributes=True)
