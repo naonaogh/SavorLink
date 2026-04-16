@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import api from '@/api'
+import CommonNavbar from '@/components/CommonNavbar.vue'
 
 type UserProfile = {
   id: number
@@ -19,15 +21,96 @@ type EnterpriseProfile = {
   email?: string | null
 }
 
-const API_BASE = 'http://127.0.0.1:8001'
-
 const user = ref<UserProfile | null>(null)
 const enterprise = ref<EnterpriseProfile | null>(null)
 const loading = ref(true)
 const error = ref('')
 
-const favoritesCount = ref(0)
-const cartCount = ref(0)
+const isEditingEnterprise = ref(false)
+const isCreatingEnterprise = ref(false)
+const isJoiningEnterprise = ref(false)
+const savingEnterprise = ref(false)
+const joinableEnterprises = ref<EnterpriseProfile[]>([])
+const loadingEnterprises = ref(false)
+
+const createForm = ref({
+  short_name: '',
+  inn: '',
+  region: '',
+  phone: '',
+  email: ''
+})
+
+const editForm = ref<EnterpriseProfile>({
+  id: 0,
+  short_name: '',
+  inn: '',
+  region: '',
+  phone: '',
+  email: ''
+})
+
+const startEditEnterprise = () => {
+  if (enterprise.value) {
+    editForm.value = { ...enterprise.value }
+    isEditingEnterprise.value = true
+  }
+}
+
+const createEnterprise = async () => {
+  savingEnterprise.value = true
+  try {
+    const res = await api.post('/enterprises', createForm.value)
+    enterprise.value = res.data
+    isCreatingEnterprise.value = false
+    if (user.value) user.value.enterprise_id = res.data.id
+  } catch (e: any) {
+    alert(e.response?.data?.detail || 'Ошибка при создании')
+  } finally {
+    savingEnterprise.value = false
+  }
+}
+
+const startJoinEnterprise = async () => {
+  isJoiningEnterprise.value = true
+  loadingEnterprises.value = true
+  try {
+    const res = await api.get('/enterprises')
+    joinableEnterprises.value = res.data
+  } catch (e: any) {
+    alert('Ошибка при загрузке списка предприятий')
+  } finally {
+    loadingEnterprises.value = false
+  }
+}
+
+const joinEnterprise = async (id: number) => {
+  savingEnterprise.value = true
+  try {
+    const res = await api.post(`/enterprises/${id}/join`)
+    enterprise.value = res.data
+    isJoiningEnterprise.value = false
+    if (user.value) user.value.enterprise_id = res.data.id
+  } catch (e: any) {
+    alert(e.response?.data?.detail || 'Ошибка при присоединении')
+  } finally {
+    savingEnterprise.value = false
+  }
+}
+
+const saveEnterprise = async () => {
+  if (!enterprise.value) return
+  savingEnterprise.value = true
+  try {
+    const res = await api.patch(`/enterprises/${enterprise.value.id}`, editForm.value)
+    enterprise.value = res.data
+    isEditingEnterprise.value = false
+  } catch (e: any) {
+    alert(e.response?.data?.detail || 'Ошибка при сохранении')
+  } finally {
+    savingEnterprise.value = false
+  }
+}
 
 const createdAt = computed(() => {
   if (!user.value?.created_at) return '—'
@@ -39,60 +122,29 @@ const loadProfile = async () => {
   error.value = ''
 
   try {
-    const userRes = await fetch(`${API_BASE}/users/me`)
-    if (!userRes.ok) throw new Error('Не удалось получить профиль пользователя')
-
-    const userData: UserProfile = await userRes.json()
+    const userRes = await api.get('/users/me')
+    const userData: UserProfile = userRes.data
     user.value = userData
 
     if (userData.enterprise_id) {
-      const entRes = await fetch(`${API_BASE}/enterprises/${userData.enterprise_id}`)
-      if (entRes.ok) {
-        enterprise.value = await entRes.json()
-      }
+      const entRes = await api.get(`/enterprises/${userData.enterprise_id}`)
+      enterprise.value = entRes.data
     }
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Ошибка загрузки профиля'
+  } catch (e: any) {
+    error.value = e.response?.data?.detail || 'Ошибка загрузки профиля'
   } finally {
     loading.value = false
   }
 }
 
 onMounted(() => {
-  const rawFavorites = localStorage.getItem('shop-storage')
-  if (rawFavorites) {
-    try {
-      const parsed = JSON.parse(rawFavorites)
-      favoritesCount.value =
-        (parsed?.favoriteSuppliers?.length ?? 0) + (parsed?.favoriteProducts?.length ?? 0)
-      cartCount.value = (parsed?.cartItems ?? []).reduce(
-        (sum: number, item: { quantityKg: number }) => sum + (item.quantityKg ?? 0),
-        0,
-      )
-    } catch {
-      favoritesCount.value = 0
-      cartCount.value = 0
-    }
-  }
-
   loadProfile()
 })
 </script>
 
 <template>
   <div class="profile-page">
-    <header class="profile-header">
-      <nav class="profile-nav">
-        <router-link to="/" class="nav-logo">SavorLink</router-link>
-        <div class="nav-links">
-          <router-link to="/" class="nav-link">Главная</router-link>
-          <router-link to="/catalog" class="nav-link">Каталог</router-link>
-          <router-link to="/profile" class="nav-link nav-link--active">Профиль</router-link>
-          <router-link to="/favorites" class="nav-link">Избранное ({{ favoritesCount }})</router-link>
-          <router-link to="/cart" class="nav-link">Корзина ({{ cartCount }})</router-link>
-        </div>
-      </nav>
-    </header>
+    <CommonNavbar />
 
     <main class="profile-main">
       <section class="profile-card">
@@ -116,15 +168,108 @@ onMounted(() => {
           </article>
 
           <article class="info-card">
-            <h2 class="info-title">Предприятие</h2>
-            <dl v-if="enterprise" class="info-list">
-              <div class="info-row"><dt>Название</dt><dd>{{ enterprise.short_name }}</dd></div>
-              <div class="info-row"><dt>ИНН</dt><dd>{{ enterprise.inn }}</dd></div>
-              <div class="info-row"><dt>Регион</dt><dd>{{ enterprise.region }}</dd></div>
-              <div class="info-row"><dt>Телефон</dt><dd>{{ enterprise.phone || '—' }}</dd></div>
-              <div class="info-row"><dt>Email</dt><dd>{{ enterprise.email || '—' }}</dd></div>
-            </dl>
-            <p v-else class="state-text">Данные предприятия не найдены.</p>
+            <div class="card-header">
+              <h2 class="info-title">Предприятие</h2>
+              <button 
+                v-if="user.role === 'SUPPLIER' && !isEditingEnterprise" 
+                @click="startEditEnterprise" 
+                class="edit-btn"
+              >
+                Изменить
+              </button>
+            </div>
+
+            <div v-if="enterprise">
+              <form v-if="isEditingEnterprise" @submit.prevent="saveEnterprise" class="edit-form">
+                <div class="form-group">
+                  <label>Название</label>
+                  <input v-model="editForm.short_name" type="text" required />
+                </div>
+                <div class="form-group">
+                  <label>ИНН</label>
+                  <input v-model="editForm.inn" type="text" required />
+                </div>
+                <div class="form-group">
+                  <label>Регион</label>
+                  <input v-model="editForm.region" type="text" required />
+                </div>
+                <div class="form-group">
+                  <label>Телефон</label>
+                  <input v-model="editForm.phone" type="text" />
+                </div>
+                <div class="form-group">
+                  <label>Email</label>
+                  <input v-model="editForm.email" type="email" />
+                </div>
+                <div class="edit-actions">
+                  <button type="button" @click="isEditingEnterprise = false" class="cancel-btn">Отмена</button>
+                  <button type="submit" class="save-btn" :disabled="savingEnterprise">
+                    {{ savingEnterprise ? 'Сохранение...' : 'Сохранить' }}
+                  </button>
+                </div>
+              </form>
+              <dl v-else class="info-list">
+                <div class="info-row"><dt>Название</dt><dd>{{ enterprise.short_name }}</dd></div>
+                <div class="info-row"><dt>ИНН</dt><dd>{{ enterprise.inn }}</dd></div>
+                <div class="info-row"><dt>Регион</dt><dd>{{ enterprise.region }}</dd></div>
+                <div class="info-row"><dt>Телефон</dt><dd>{{ enterprise.phone || '—' }}</dd></div>
+                <div class="info-row"><dt>Email</dt><dd>{{ enterprise.email || '—' }}</dd></div>
+              </dl>
+            </div>
+            <div v-else>
+              <div v-if="isCreatingEnterprise">
+                <form @submit.prevent="createEnterprise" class="edit-form">
+                  <div class="form-group">
+                    <label>Название</label>
+                    <input v-model="createForm.short_name" type="text" required placeholder="Например: ООО 'МясоПром'" />
+                  </div>
+                  <div class="form-group">
+                    <label>ИНН</label>
+                    <input v-model="createForm.inn" type="text" required placeholder="10 или 12 цифр" />
+                  </div>
+                  <div class="form-group">
+                    <label>Регион</label>
+                    <input v-model="createForm.region" type="text" required placeholder="Например: Москва" />
+                  </div>
+                  <div class="form-group">
+                    <label>Телефон</label>
+                    <input v-model="createForm.phone" type="text" placeholder="+7 (999) 000-00-00" />
+                  </div>
+                  <div class="form-group">
+                    <label>Email</label>
+                    <input v-model="createForm.email" type="email" placeholder="email@company.ru" />
+                  </div>
+                  <div class="edit-actions">
+                    <button type="button" @click="isCreatingEnterprise = false" class="cancel-btn">Отмена</button>
+                    <button type="submit" class="save-btn" :disabled="savingEnterprise">
+                      {{ savingEnterprise ? 'Создание...' : 'Создать предприятие' }}
+                    </button>
+                  </div>
+                </form>
+              </div>
+              <div v-else-if="isJoiningEnterprise">
+                <div class="join-list">
+                  <p v-if="loadingEnterprises">Загрузка списка...</p>
+                  <div v-else class="enterprise-items">
+                    <div v-for="ent in joinableEnterprises" :key="ent.id" class="enterprise-item">
+                      <div class="ent-info">
+                        <strong>{{ ent.short_name }}</strong>
+                        <span>ИНН: {{ ent.inn }}</span>
+                      </div>
+                      <button @click="joinEnterprise(ent.id)" :disabled="savingEnterprise" class="join-btn-small">Выбрать</button>
+                    </div>
+                  </div>
+                  <button @click="isJoiningEnterprise = false" class="cancel-btn mt-2">Назад</button>
+                </div>
+              </div>
+              <div v-else class="no-enterprise-actions">
+                <p class="state-text">Вы пока не привязаны к предприятию. Для совершения заказов необходимо создать новое или выбрать существующее.</p>
+                <div class="action-buttons">
+                  <button @click="isCreatingEnterprise = true" class="primary-btn">Создать новое</button>
+                  <button @click="startJoinEnterprise" class="secondary-btn">Присоединиться к существующему</button>
+                </div>
+              </div>
+            </div>
           </article>
         </div>
       </section>
@@ -201,6 +346,8 @@ onMounted(() => {
   gap: 1rem;
 }
 
+.state-text--error { color: #8f2d2d; }
+
 .info-card {
   background: #f4ead4;
   border: 1px solid #ddc8a3;
@@ -221,5 +368,185 @@ onMounted(() => {
 .info-row dt { color: #6d6254; }
 .info-row dd { margin: 0; font-weight: 600; text-align: right; }
 .state-text { margin: 0.7rem 0; color: #5f5648; }
-.state-text--error { color: #8f2d2d; }
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.8rem;
+}
+
+.edit-btn {
+  background: transparent;
+  border: 1px solid #3f4a2f;
+  color: #3f4a2f;
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.edit-btn:hover {
+  background: #3f4a2f;
+  color: #fff;
+}
+
+.edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.form-group label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #6d6254;
+}
+
+.form-group input {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #dcc7a2;
+  border-radius: 0.4rem;
+  background: #fff;
+  font-family: inherit;
+  font-size: 0.94rem;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #3f4a2f;
+}
+
+.edit-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.cancel-btn {
+  background: transparent;
+  border: none;
+  color: #6d6254;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.save-btn {
+  background: #3f4a2f;
+  color: #fff;
+  border: none;
+  padding: 0.5rem 1.25rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.save-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.no-enterprise-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.primary-btn {
+  background: #3f4a2f;
+  color: #fff;
+  border: none;
+  padding: 0.6rem 1.25rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.secondary-btn {
+  background: #fff;
+  color: #3f4a2f;
+  border: 1px solid #3f4a2f;
+  padding: 0.6rem 1.25rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.secondary-btn:hover {
+  background: #f0e5d1;
+}
+
+.join-list {
+  background: #fff;
+  border: 1px solid #dcc7a2;
+  border-radius: 0.4rem;
+  padding: 0.5rem;
+}
+
+.enterprise-items {
+  max-height: 300px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.enterprise-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  border-bottom: 1px solid #eee;
+}
+
+.enterprise-item:last-child {
+  border-bottom: none;
+}
+
+.ent-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.ent-info strong {
+  font-size: 0.95rem;
+  color: #3f4a2f;
+}
+
+.ent-info span {
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.join-btn-small {
+  background: #3f4a2f;
+  color: #fff;
+  border: none;
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.4rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.mt-2 {
+  margin-top: 1rem;
+}
 </style>

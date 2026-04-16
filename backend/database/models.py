@@ -81,25 +81,37 @@ class Enterprise(Base):
     logo_url = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    users = relationship("User", secondary=user_enterprises, back_populates="enterprises")
+    users = relationship("User", secondary=user_enterprises, back_populates="enterprises", lazy="selectin")
 
-    products = relationship("Product", back_populates="enterprise")
+    products = relationship("Product", back_populates="enterprise", lazy="selectin")
 
-    orders_as_buyer = relationship("Order", foreign_keys="Order.buyer_enterprise_id")
-    orders_as_seller = relationship("Order", foreign_keys="Order.seller_enterprise_id")
+    orders_as_buyer = relationship(
+        "Order",
+        foreign_keys="Order.buyer_enterprise_id",
+        back_populates="buyer_enterprise",
+        lazy="selectin"
+    )
+    orders_as_seller = relationship(
+        "Order",
+        foreign_keys="Order.seller_enterprise_id",
+        back_populates="seller_enterprise",
+        lazy="selectin"
+    )
 
     reviews_as_author = relationship(
         "EnterpriseReview",
         foreign_keys="EnterpriseReview.author_enterprise_id",
         back_populates="author_enterprise",
+        lazy="selectin"
     )
     reviews_as_target = relationship(
         "EnterpriseReview",
         foreign_keys="EnterpriseReview.target_enterprise_id",
         back_populates="target_enterprise",
+        lazy="selectin"
     )
 
-    product_reviews = relationship("ProductReview", back_populates="author_enterprise")
+    product_reviews = relationship("ProductReview", back_populates="author_enterprise", lazy="selectin")
 
 
 class User(Base):
@@ -114,18 +126,31 @@ class User(Base):
         nullable=False,
     )
 
+    phone = Column(Text, nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    enterprises = relationship("Enterprise", secondary=user_enterprises, back_populates="users")
+    enterprises = relationship(
+        "Enterprise",
+        secondary=user_enterprises,
+        back_populates="users",
+        lazy="selectin"
+    )
 
-    cart = relationship("Cart", back_populates="user", uselist=False)
+    cart = relationship("Cart", back_populates="user", uselist=False, lazy="selectin")
 
-    messages_sent = relationship("Message", back_populates="sender")
-    order_history = relationship("OrderHistory", back_populates="changed_by_user")
-    favorites = relationship("Favorite", back_populates="user")
+    messages_sent = relationship("Message", back_populates="sender", lazy="selectin")
+    order_history = relationship("OrderHistory", back_populates="changed_by_user", lazy="selectin")
+    favorites = relationship("Favorite", back_populates="user", lazy="selectin")
 
-    chats_as_user1 = relationship("Chat", foreign_keys="Chat.user1_id", back_populates="user1")
-    chats_as_user2 = relationship("Chat", foreign_keys="Chat.user2_id", back_populates="user2")
+    chats_as_user1 = relationship("Chat", foreign_keys="Chat.user1_id", back_populates="user1", lazy="selectin")
+    chats_as_user2 = relationship("Chat", foreign_keys="Chat.user2_id", back_populates="user2", lazy="selectin")
+
+    @property
+    def enterprise_id(self) -> int | None:
+        if self.enterprises:
+            return self.enterprises[0].id
+        return None
 
 
 class Category(Base):
@@ -150,11 +175,11 @@ class Product(Base):
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    enterprise = relationship("Enterprise", back_populates="products")
-    category = relationship("Category")
+    enterprise = relationship("Enterprise", back_populates="products", lazy="selectin")
+    category = relationship("Category", lazy="selectin")
 
-    favorites = relationship("Favorite", back_populates="product")
-    reviews = relationship("ProductReview", back_populates="product")
+    favorites = relationship("Favorite", back_populates="product", lazy="selectin")
+    reviews = relationship("ProductReview", back_populates="product", lazy="selectin")
 
 
 class Order(Base):
@@ -174,13 +199,21 @@ class Order(Base):
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    buyer_enterprise = relationship("Enterprise", foreign_keys=[buyer_enterprise_id])
-    seller_enterprise = relationship("Enterprise", foreign_keys=[seller_enterprise_id])
+    buyer_enterprise = relationship(
+        "Enterprise",
+        foreign_keys=[buyer_enterprise_id],
+        back_populates="orders_as_buyer"
+    )
+    seller_enterprise = relationship(
+        "Enterprise",
+        foreign_keys=[seller_enterprise_id],
+        back_populates="orders_as_seller"
+    )
 
-    items = relationship("OrderItem", back_populates="order")
-    history = relationship("OrderHistory", back_populates="order")
-    payment = relationship("Payment", back_populates="order", uselist=False)
-    documents = relationship("Document", back_populates="order")
+    items = relationship("OrderItem", back_populates="order", lazy="selectin")
+    history = relationship("OrderHistory", back_populates="order", lazy="selectin")
+    payment = relationship("Payment", back_populates="order", uselist=False, lazy="selectin")
+    documents = relationship("Document", back_populates="order", lazy="selectin")
 
 
 class OrderItem(Base):

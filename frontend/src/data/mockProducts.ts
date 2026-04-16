@@ -46,4 +46,3 @@ export const mockProducts: Product[] = [
     stockKg: 120,
   },
 ]
-

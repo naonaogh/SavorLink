@@ -9,12 +9,12 @@ from backend.database.models import User
 
 class UserRepository:
     async def get(self, session: AsyncSession, user_id: int) -> User | None:
-        stmt = select(User).where(User.id == user_id).options(selectinload(User.enterprise))
+        stmt = select(User).where(User.id == user_id).options(selectinload(User.enterprises))
         res = await session.execute(stmt)
         return res.scalars().first()
 
     async def get_by_email(self, session: AsyncSession, email: str) -> User | None:
-        stmt = select(User).where(User.email == email).options(selectinload(User.enterprise))
+        stmt = select(User).where(User.email == email).options(selectinload(User.enterprises))
         res = await session.execute(stmt)
         return res.scalars().first()
 

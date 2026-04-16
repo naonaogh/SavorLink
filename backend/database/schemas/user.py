@@ -69,6 +69,7 @@ class UserRead(BaseModel):
     email: str
     role: UserRole
     created_at: datetime
+    enterprise_id: Optional[int] = None
 
     # many-to-many
     enterprises: List[EnterpriseShort] = []

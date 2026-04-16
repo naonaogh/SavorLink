@@ -9,17 +9,18 @@ from backend.database.models import Product
 
 
 class ProductRepository:
-    async def list(self, session: AsyncSession, *, limit: int = 50, offset: int = 0) -> Sequence[Product]:
+    async def list(self, session: AsyncSession, *, enterprise_id: int | None = None, limit: int = 50, offset: int = 0) -> Sequence[Product]:
         stmt = (
             select(Product)
             .options(
                 selectinload(Product.enterprise),
                 selectinload(Product.category),
             )
-            .limit(limit)
-            .offset(offset)
-            .order_by(Product.id.desc())
         )
+        if enterprise_id:
+            stmt = stmt.where(Product.enterprise_id == enterprise_id)
+        
+        stmt = stmt.limit(limit).offset(offset).order_by(Product.id.desc())
         res = await session.execute(stmt)
         return res.scalars().all()
 

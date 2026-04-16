@@ -4,7 +4,7 @@ from decimal import Decimal
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, field_validator, ConfigDict
+from pydantic import BaseModel, field_validator, ConfigDict, Field
 
 from backend.database.models import OrderStatus, PaymentStatus, DocumentType
 from .enterprise import EnterpriseShort
@@ -76,7 +76,10 @@ class OrderListItem(BaseSchema):
     created_at: datetime
 
     seller_enterprise: EnterpriseShort
+    buyer_enterprise: Optional[EnterpriseShort] = None
     buyer: Optional[EnterpriseShort] = None
+
+    items: List[OrderItemRead] = Field(default_factory=list)
 
 
 class OrderRead(BaseSchema):
@@ -93,6 +96,6 @@ class OrderRead(BaseSchema):
     buyer_enterprise: Optional[EnterpriseShort] = None
     seller_enterprise: EnterpriseShort
 
-    items: List[OrderItemRead]
+    items: List[OrderItemRead] = Field(default_factory=list)
     payment: Optional[PaymentShort] = None
-    documents: List[DocumentShort] = []
+    documents: List[DocumentShort] = Field(default_factory=list)

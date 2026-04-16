@@ -57,21 +57,33 @@ app = FastAPI(
 )
 
 
-# CORS — разрешаем фронтенд (Vite/React обычно на 5173)
-origins = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    # "https://your-frontend-domain.com",  # добавь позже
-    # "*"  # ← только для отладки, в продакшене не используй
-]
-
+# CORS — временно разрешаем ВСЁ для отладки
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Глобальный обработчик ошибок для отладки
+@app.middleware("http")
+async def catch_exceptions_middleware(request, call_next):
+    try:
+        return await call_next(request)
+    except Exception as e:
+        logger.error(f"Unhandled exception: {e}", exc_info=True)
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal Server Error", "exception": str(e)},
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "*",
+                "Access-Control-Allow-Headers": "*",
+            }
+        )
 
 
 # Подключаем все роутеры

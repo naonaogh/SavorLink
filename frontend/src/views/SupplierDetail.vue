@@ -1,220 +1,208 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { mockSuppliers } from '@/data/mockSuppliers'
-import { mockProducts, type Product } from '@/data/mockProducts'
-import { useShopStore } from '@/data/shopStore'
+import { useShopStore, type Product } from '@/data/shopStore'
+import { useAuthStore } from '@/data/authStore'
+import CommonNavbar from '@/components/CommonNavbar.vue'
 
 const route = useRoute()
 const store = useShopStore()
+const authStore = useAuthStore()
 
-const supplierId = computed(() => Number(route.params.id ?? 1))
+const supplierId = computed(() => Number(route.params.id))
 
-const supplier = computed(
-  () => mockSuppliers.find((s) => s.id === supplierId.value) ?? mockSuppliers[0]!,
-)
+onMounted(() => {
+  if (supplierId.value) {
+    store.fetchSupplierDetail(supplierId.value)
+  }
+})
 
-const supplierProducts = computed(() =>
-  mockProducts.filter((product) => product.supplierId === supplierId.value),
-)
+const supplier = computed(() => store.state.currentSupplier)
 
+// Modal Logic
+const showModal = ref(false)
 const selectedProduct = ref<Product | null>(null)
-const quantityKg = ref(10)
+const quantity = ref(1)
 
-const isSelectedFavorite = computed(() =>
-  selectedProduct.value ? store.isProductFavorite(selectedProduct.value.id) : false,
-)
-
-const modalTotal = computed(() =>
-  selectedProduct.value ? selectedProduct.value.pricePerKg * quantityKg.value : 0,
-)
-
-const favoritesCount = computed(
-  () => store.state.favoriteSuppliers.length + store.state.favoriteProducts.length,
-)
-
-const cartCount = computed(() =>
-  store.state.cartItems.reduce((sum, item) => sum + item.quantityKg, 0),
-)
-
-const openProduct = (product: Product) => {
+const openProductModal = (product: Product) => {
   selectedProduct.value = product
-  quantityKg.value = 10
+  quantity.value = product.min_order_qty || 1
+  showModal.value = true
 }
 
-const closeProduct = () => {
+const closeModal = () => {
+  showModal.value = false
   selectedProduct.value = null
 }
 
-const decreaseQty = () => {
-  if (quantityKg.value > 1) quantityKg.value -= 1
+const handleAddToCart = async () => {
+  if (selectedProduct.value) {
+    await store.addToCart(selectedProduct.value, quantity.value)
+    closeModal()
+  }
 }
 
-const increaseQty = () => {
-  quantityKg.value += 1
+const handleToggleFavorite = async (product: Product) => {
+  await store.toggleFavoriteProduct(product)
 }
 
-const toggleSelectedFavorite = () => {
-  if (!selectedProduct.value) return
-  store.toggleFavoriteProduct(selectedProduct.value)
-}
-
-const addSelectedToCart = () => {
-  if (!selectedProduct.value) return
-  store.addToCart(selectedProduct.value, quantityKg.value)
-}
-
-const toggleSupplierFavorite = () => {
-  if (!supplier.value) return
-  store.toggleFavoriteSupplier(supplier.value)
-}
+const modalTotal = computed(() => {
+  if (!selectedProduct.value) return 0
+  return (selectedProduct.value.price * quantity.value).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+})
 </script>
 
 <template>
   <div class="supplier-page">
-    <header class="supplier-header">
-      <nav class="supplier-nav">
-        <router-link to="/catalog" class="nav-back">← Каталог поставщиков</router-link>
-        <div class="nav-actions">
-          <router-link to="/" class="nav-link">Главная</router-link>
-          <router-link to="/profile" class="nav-link">Профиль</router-link>
-          <router-link to="/favorites" class="nav-link">
-            Избранное ({{ favoritesCount }})
-          </router-link>
-          <router-link to="/cart" class="nav-link">
-            Корзина ({{ cartCount }})
-          </router-link>
-        </div>
-      </nav>
-    </header>
+    <CommonNavbar />
 
     <main class="supplier-main">
-      <section class="supplier-hero-card">
-        <div class="supplier-hero-left">
-          <div class="supplier-hero-title-row">
-            <h1 class="supplier-hero-name">{{ supplier.name }}</h1>
-            <div class="supplier-hero-rating">
-              <span class="stars">★★★★★</span>
-              <span class="rating-value">{{ supplier.rating.toFixed(1) }}</span>
-              <span class="rating-reviews">({{ supplier.reviews }} отзывов)</span>
-            </div>
-          </div>
-          <p class="supplier-hero-location">{{ supplier.locations }}</p>
-          <p class="supplier-hero-text">
-            {{ supplier.description }} Работает с {{ supplier.since }}.
-          </p>
-          <p class="supplier-hero-meta">
-            Мин. заказ: <strong>{{ supplier.minOrder }}</strong><br />
-            Доставка: {{ supplier.delivery }}
-          </p>
-        </div>
-        <div class="supplier-hero-right">
-          <button
-            type="button"
-            class="supplier-fav-large"
-            aria-label="Добавить в избранное"
-            @click="toggleSupplierFavorite"
-          >
-            🤍
-          </button>
-          <button type="button" class="supplier-contact">Написать</button>
-        </div>
-      </section>
+      <div class="breadcrumb">
+        <router-link to="/catalog" class="breadcrumb-link">← Каталог поставщиков</router-link>
+      </div>
 
-      <section class="products-section">
-        <h2 class="products-title">Товары поставщика</h2>
-        <div class="products-grid">
-          <button
-            v-for="product in supplierProducts"
-            :key="product.id"
-            type="button"
-            class="product-card"
-            @click="openProduct(product)"
-          >
-            <div class="product-image-placeholder">
-              <span class="image-icon">🖼</span>
-            </div>
-            <div class="product-body">
-              <h3 class="product-name">{{ product.name }}</h3>
-              <p class="product-desc">{{ product.description }}</p>
-              <p class="product-price">
-                <span class="price-main">{{ product.pricePerKg }} ₽</span>
-                <span class="price-unit">/ {{ product.unit }}</span>
-              </p>
-              <p class="product-stock">На складе: {{ product.stockKg }} кг</p>
-            </div>
-            <div class="product-footer">
-              <span class="product-more">Подробнее</span>
-            </div>
-          </button>
-        </div>
-      </section>
-
-      <div v-if="selectedProduct" class="product-modal-backdrop" @click.self="closeProduct">
-        <div class="product-modal">
-          <header class="product-modal-header">
-            <div>
-              <h2 class="product-modal-title">{{ selectedProduct.name }}</h2>
-              <p class="product-modal-sub">{{ supplier?.name }}</p>
-            </div>
-            <div class="product-modal-actions">
-              <button
-                type="button"
-                class="icon-btn"
-                :class="{ 'icon-btn--active': isSelectedFavorite }"
-                aria-label="Добавить в избранное"
-                @click.stop="toggleSelectedFavorite"
-              >
-                {{ isSelectedFavorite ? '❤️' : '🤍' }}
-              </button>
-              <button
-                type="button"
-                class="icon-btn"
-                aria-label="Закрыть"
-                @click="closeProduct"
-              >
-                ✕
-              </button>
-            </div>
-          </header>
-
-          <div class="product-modal-body">
-            <p class="product-modal-price-row">
-              <span class="product-modal-price">
-                {{ selectedProduct.pricePerKg }} ₽/{{ selectedProduct.unit }}
-              </span>
-              <span class="product-modal-note">
-                Осталось: {{ selectedProduct.stockKg }} кг · Доставка завтра 06:00–10:00
-              </span>
-            </p>
-            <ul class="product-modal-list">
-              <li>Бесплатно от 5000 ₽ у этого поставщика</li>
-              <li>Верифицированный поставщик</li>
-              <li>Идеальны для салатов и украшения блюд</li>
-            </ul>
-
-            <div class="product-modal-qty-row">
-              <span>Количество:</span>
-              <div class="qty-control">
-                <button type="button" class="qty-btn" @click="decreaseQty">−</button>
-                <span class="qty-value">{{ quantityKg }} кг</span>
-                <button type="button" class="qty-btn" @click="increaseQty">+</button>
+      <div v-if="store.state.loading" class="supplier-status">
+        Загрузка данных поставщика...
+      </div>
+      <div v-else-if="store.state.error" class="supplier-status error">
+        {{ store.state.error }}
+      </div>
+      <div v-else-if="supplier" class="supplier-content">
+        <!-- Supplier Header -->
+        <section class="supplier-info-card">
+          <div class="supplier-info-top">
+            <div class="supplier-avatar-large">{{ supplier.name.charAt(0) }}</div>
+            <div class="supplier-info-main">
+              <h1 class="supplier-title">{{ supplier.name }}</h1>
+              <p class="supplier-subtitle">{{ supplier.company }}</p>
+              <div class="supplier-stats">
+                <span class="stat-item">★ {{ supplier.rating.toFixed(1) }} ({{ supplier.reviews }} отзывов)</span>
+                <span class="stat-item">📍 {{ supplier.locations }}</span>
+                <span class="stat-item">📅 На SavorLink с {{ supplier.since }} года</span>
               </div>
-              <span class="product-modal-total">Сумма: {{ modalTotal }} ₽</span>
+            </div>
+            <button class="btn-favorite-large" @click="store.toggleFavoriteSupplier(supplier)">
+              {{ store.isSupplierFavorite(supplier.id) ? '❤️ В избранном' : '🤍 В избранное' }}
+            </button>
+          </div>
+          <p class="supplier-description-text">{{ supplier.description }}</p>
+        </section>
+
+        <!-- Product Grid -->
+        <section class="supplier-products">
+          <h2 class="section-title">Продукция поставщика</h2>
+          <div v-if="supplier.products.length === 0" class="no-products">
+            У поставщика пока нет товаров
+          </div>
+          <div v-else class="products-grid">
+            <div
+              v-for="product in supplier.products"
+              :key="product.id"
+              class="product-card"
+              @click="openProductModal(product)"
+            >
+              <div class="product-image-placeholder">
+                <span class="product-category-badge" v-if="product.category">{{ product.category.name }}</span>
+                <span class="product-badge-low" v-if="product.quantity_in_stock !== null && product.quantity_in_stock < 50">
+                  Мало
+                </span>
+              </div>
+              <div class="product-body">
+                <h3 class="product-name">{{ product.name }}</h3>
+                <p class="product-desc" v-if="product.description">{{ product.description }}</p>
+                <p class="product-price">{{ product.price }} ₽/кг</p>
+                <p class="product-stock">
+                  На складе: {{ product.quantity_in_stock ?? 0 }} кг
+                </p>
+                <div class="product-actions">
+                  <button
+                    class="btn-fav-product"
+                    :class="{ active: store.isProductFavorite(product.id) }"
+                    @click.stop="handleToggleFavorite(product)"
+                    v-if="authStore.token"
+                  >
+                    {{ store.isProductFavorite(product.id) ? '❤️' : '🤍' }}
+                  </button>
+                  <button class="btn-add-cart" @click.stop="openProductModal(product)">
+                    В корзину
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-
-          <footer class="product-modal-footer">
-            <button type="button" class="product-modal-secondary" @click="addSelectedToCart">
-              Добавить в корзину
-            </button>
-            <button type="button" class="product-modal-primary">
-              Заказать
-            </button>
-          </footer>
-        </div>
+        </section>
       </div>
     </main>
+
+    <!-- Product Modal -->
+    <Transition name="fade">
+      <div v-if="showModal && selectedProduct" class="modal-overlay" @click.self="closeModal">
+        <div class="modal-card">
+          <button class="btn-close" @click="closeModal">×</button>
+
+          <div class="modal-layout">
+            <div class="modal-image-side">
+              <div class="img-fill">
+                <div class="img-placeholder-icon">🌿</div>
+              </div>
+            </div>
+
+            <div class="modal-info-side">
+              <p class="modal-category" v-if="selectedProduct.category">{{ selectedProduct.category.name }}</p>
+              <h2 class="product-modal-name">{{ selectedProduct.name }}</h2>
+              <div class="product-modal-price">{{ selectedProduct.price }} ₽/кг</div>
+
+              <p class="product-modal-description" v-if="selectedProduct.description">
+                {{ selectedProduct.description }}
+              </p>
+
+              <div class="modal-meta-grid">
+                <div class="meta-row">
+                  <span class="meta-label">На складе:</span>
+                  <span class="meta-value">{{ selectedProduct.quantity_in_stock ?? 0 }} кг</span>
+                </div>
+                <div class="meta-row">
+                  <span class="meta-label">Мин. заказ:</span>
+                  <span class="meta-value">{{ selectedProduct.min_order_qty || 1 }} кг</span>
+                </div>
+                <div class="meta-row">
+                  <span class="meta-label">Доставка:</span>
+                  <span class="meta-value">Бесплатно сегодня</span>
+                </div>
+              </div>
+
+              <div class="product-modal-qty-row">
+                <div class="qty-picker">
+                  <button @click="quantity = Math.max(selectedProduct.min_order_qty || 1, quantity - 1)">−</button>
+                  <span class="qty-display">{{ quantity }}</span>
+                  <button @click="quantity++">+</button>
+                </div>
+                <div class="qty-unit">кг</div>
+              </div>
+
+              <div class="modal-total-row">
+                <div class="total-label">Итого</div>
+                <div class="total-value">{{ modalTotal }} ₽</div>
+              </div>
+
+              <div class="modal-action-btns">
+                <button
+                  v-if="authStore.token"
+                  class="btn-modal-fav"
+                  :class="{ active: store.isProductFavorite(selectedProduct.id) }"
+                  @click="handleToggleFavorite(selectedProduct)"
+                >
+                  {{ store.isProductFavorite(selectedProduct.id) ? '❤️ В избранном' : '🤍 Избранное' }}
+                </button>
+                <button class="btn-modal-add" @click="handleAddToCart" :disabled="!authStore.token">
+                  {{ authStore.token ? 'Добавить в корзину' : 'Войдите для заказа' }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -222,403 +210,498 @@ const toggleSupplierFavorite = () => {
 .supplier-page {
   min-height: 100vh;
   background: #ebe2ce;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
-    sans-serif;
-  color: #2e2a23;
-}
-
-.supplier-header {
-  background: linear-gradient(120deg, #364128 0%, #3f4a2f 60%, #4a5638 100%);
-  padding: 0.875rem 1.5rem;
-  position: sticky;
-  top: 0;
-  z-index: 20;
-}
-
-.supplier-nav {
-  max-width: 1200px;
-  margin: 0 auto;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
-.nav-back {
-  color: #f0e5d1;
-  text-decoration: none;
-  font-size: 0.95rem;
-}
-
-.nav-back:hover {
-  text-decoration: underline;
-}
-
-.nav-actions {
-  display: flex;
-  gap: 1rem;
-}
-
-.nav-link {
-  color: #e7dbc5;
-  text-decoration: none;
-  font-size: 0.9rem;
-}
-
-.nav-link:hover {
-  color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
 .supplier-main {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 2rem 1.5rem 3rem;
+  padding: 1.5rem 1.5rem 3rem;
 }
 
-.supplier-hero-card {
-  background: #f5ebd6;
-  border: 1px solid #dcc7a2;
-  border-radius: 1.5rem;
-  padding: 1.8rem 2rem;
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.25);
-  display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
-  gap: 1.5rem;
-  margin-bottom: 2.5rem;
+.breadcrumb {
+  margin-bottom: 1.25rem;
 }
 
-.supplier-hero-left {
-  min-width: 0;
-}
-
-.supplier-hero-title-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
-  margin-bottom: 0.75rem;
-}
-
-.supplier-hero-name {
-  font-size: 2rem;
-  font-weight: 700;
-  margin: 0;
-}
-
-.supplier-hero-rating {
-  white-space: nowrap;
-  font-size: 0.95rem;
-}
-
-.stars {
-  color: #facc15;
-  margin-right: 0.25rem;
-}
-
-.rating-value {
-  font-weight: 600;
-}
-
-.rating-reviews {
-  color: #6b7280;
-  margin-left: 0.3rem;
-}
-
-.supplier-hero-location {
-  margin: 0 0 0.4rem;
-  font-size: 0.95rem;
+.breadcrumb-link {
   color: #4b5563;
-}
-
-.supplier-hero-text {
-  margin: 0 0 0.6rem;
-  font-size: 0.95rem;
-  color: #111827;
-}
-
-.supplier-hero-meta {
-  margin: 0;
+  text-decoration: none;
   font-size: 0.9rem;
+  transition: color 0.2s;
+}
+
+.breadcrumb-link:hover {
+  color: #3f4a2f;
+}
+
+.supplier-status {
+  text-align: center;
+  padding: 4rem;
+  font-size: 1.1rem;
   color: #4b5563;
 }
 
-.supplier-hero-right {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 1rem;
+.supplier-info-card {
+  background: #f4ead4;
+  border: 1px solid #ddc8a3;
+  border-radius: 1rem;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.05);
 }
 
-.supplier-fav-large {
-  border-radius: 999px;
-  width: 42px;
-  height: 42px;
+.supplier-info-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.5rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.supplier-avatar-large {
+  width: 80px;
+  height: 80px;
+  background: linear-gradient(135deg, #d8bf98, #c0a87a);
+  color: #3f4a2f;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 2rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.supplier-info-main {
+  flex: 1;
+  min-width: 200px;
+}
+
+.supplier-title {
+  font-size: 1.75rem;
+  font-weight: 800;
+  margin: 0 0 0.25rem;
+  color: #1f2937;
+}
+
+.supplier-subtitle {
+  font-size: 1rem;
+  color: #4b5563;
+  margin: 0 0 0.75rem;
+}
+
+.supplier-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  font-size: 0.88rem;
+  color: #6b7280;
+}
+
+.btn-favorite-large {
+  background: #fff;
   border: 1px solid #d1d5db;
-  background: #ffffff;
+  padding: 0.6rem 1.25rem;
+  border-radius: 0.5rem;
   cursor: pointer;
-  font-size: 1.2rem;
+  font-weight: 600;
+  color: #374151;
+  transition: all 0.2s;
+  white-space: nowrap;
 }
 
-.supplier-contact {
-  border-radius: 999px;
-  border: 1px solid #6c5537;
-  background: #d9bf99;
-  color: #2b261f;
-  padding: 0.6rem 1.6rem;
+.btn-favorite-large:hover {
+  background: #f4ead4;
+  border-color: #a97c50;
+}
+
+.supplier-description-text {
+  line-height: 1.65;
+  color: #4b5563;
   font-size: 0.95rem;
-  font-weight: 600;
-  cursor: pointer;
+  margin: 0;
 }
 
-.products-section {
-  margin-top: 2rem;
-}
-
-.products-title {
+.section-title {
   font-size: 1.3rem;
-  font-weight: 600;
+  font-weight: 700;
   color: #3f4a2f;
-  margin: 0 0 1.5rem;
+  margin: 0 0 1.25rem;
+}
+
+.no-products {
+  text-align: center;
+  padding: 2rem;
+  color: #6b7280;
+  background: rgba(255,255,255,0.4);
+  border-radius: 1rem;
 }
 
 .products-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-  gap: 1.5rem;
+  gap: 1.25rem;
 }
 
 .product-card {
-  background: #f4ead4;
-  border-radius: 0.35rem;
-  border: 1px solid #c8d1bc;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 8px 18px rgba(72, 56, 36, 0.16);
+  background: #fff;
+  border-radius: 0.75rem;
   overflow: hidden;
+  border: 1px solid #e5e7eb;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.product-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
 }
 
 .product-image-placeholder {
-  background: linear-gradient(180deg, #f4ead4 0%, #edf0e3 100%);
-  border-radius: 0;
-  height: 210px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 0;
+  height: 150px;
+  background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+  position: relative;
 }
 
-.image-icon {
-  font-size: 2rem;
-  color: #ccb996;
+.product-category-badge {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background: rgba(63, 74, 47, 0.85);
+  color: #fff;
+  font-size: 0.72rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.product-badge-low {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 0.72rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-weight: 600;
 }
 
 .product-body {
-  flex: 1;
-  padding: 0.8rem 0.9rem 0.4rem;
-  background: #e5deca;
-  border-top: 1px solid rgba(63, 74, 47, 0.18);
-  text-align: center;
+  padding: 1rem;
 }
 
 .product-name {
   font-size: 1rem;
-  font-weight: 800;
-  color: #2f3a24;
-  text-transform: uppercase;
-  margin: 0 0 0.25rem;
+  font-weight: 700;
+  margin: 0 0 0.3rem;
+  color: #111827;
 }
 
 .product-desc {
-  font-size: 0.78rem;
-  color: #5c4a34;
-  margin: 0 0 0.35rem;
-  text-transform: uppercase;
+  font-size: 0.82rem;
+  color: #6b7280;
+  margin: 0 0 0.5rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .product-price {
-  margin: 0 0 0.15rem;
-  font-size: 0.94rem;
-}
-
-.price-main {
-  font-weight: 700;
-}
-
-.price-unit {
-  color: #6b7280;
-  margin-left: 0.1rem;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #059669;
+  margin: 0 0 0.2rem;
 }
 
 .product-stock {
-  font-size: 0.82rem;
-  color: #4e5b3b;
-  margin: 0 0 0.4rem;
-}
-
-.product-footer {
-  display: flex;
-  justify-content: center;
-  padding: 0 0.9rem 0.85rem;
-  background: #e5deca;
-}
-
-.product-more {
-  border: none;
-  background: #4f5e3c;
-  color: #ffffff;
-  padding: 0.42rem 1rem;
-  border-radius: 999px;
-  font-size: 0.8rem;
-  cursor: pointer;
-}
-
-.product-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 40;
-}
-
-.product-modal {
-  background: #ffffff;
-  border-radius: 1rem;
-  padding: 1.5rem 1.8rem 1.4rem;
-  width: 420px;
-  max-width: 90vw;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
-}
-
-.product-modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+  font-size: 0.83rem;
+  color: #6b7280;
   margin-bottom: 0.75rem;
 }
 
-.product-modal-title {
-  margin: 0 0 0.15rem;
-  font-size: 1.1rem;
-  font-weight: 600;
-}
-
-.product-modal-sub {
-  margin: 0;
-  font-size: 0.88rem;
-  color: #6b7280;
-}
-
-.product-modal-actions {
+.product-actions {
   display: flex;
   gap: 0.5rem;
 }
 
-.icon-btn {
-  border: none;
-  background: transparent;
+.btn-fav-product {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.65rem;
   cursor: pointer;
-  font-size: 1.1rem;
+  font-size: 1rem;
+  transition: all 0.2s;
 }
 
-.icon-btn--active {
-  transform: scale(1.05);
+.btn-fav-product.active {
+  background: #fff0f3;
+  border-color: #f9a8d4;
 }
 
-.product-modal-body {
-  font-size: 0.9rem;
+.btn-add-cart {
+  flex: 1;
+  background: #3f4a2f;
+  color: #fff;
+  border: none;
+  padding: 0.55rem 0.75rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.88rem;
+  transition: background 0.2s;
+}
+
+.btn-add-cart:hover {
+  background: #4a5638;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1.5rem;
+}
+
+.modal-card {
+  background: #fff;
+  width: 100%;
+  max-width: 820px;
+  border-radius: 1.5rem;
+  overflow: hidden;
+  position: relative;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.btn-close {
+  position: absolute;
+  top: 1rem;
+  right: 1.25rem;
+  border: none;
+  background: none;
+  font-size: 2rem;
+  cursor: pointer;
+  color: #9ca3af;
+  z-index: 10;
+  line-height: 1;
+}
+
+.modal-layout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+}
+
+@media (max-width: 640px) {
+  .modal-layout {
+    grid-template-columns: 1fr;
+  }
+  .modal-image-side {
+    height: 180px;
+  }
+}
+
+.modal-image-side {
+  background: linear-gradient(135deg, #e8f5e9, #a5d6a7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 250px;
+}
+
+.img-fill {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.img-placeholder-icon {
+  font-size: 5rem;
+}
+
+.modal-info-side {
+  padding: 2rem 2rem 1.75rem;
+}
+
+.modal-category {
+  font-size: 0.82rem;
+  color: #3f4a2f;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 0.4rem;
+}
+
+.product-modal-name {
+  font-size: 1.65rem;
+  font-weight: 800;
+  margin: 0 0 0.4rem;
   color: #111827;
 }
 
-.product-modal-price-row {
+.product-modal-price {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #059669;
+  margin-bottom: 1rem;
+}
+
+.product-modal-description {
+  font-size: 0.92rem;
+  color: #4b5563;
+  line-height: 1.6;
+  margin-bottom: 1.25rem;
+  background: #f9fafb;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  border-left: 3px solid #d8bf98;
+}
+
+.modal-meta-grid {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
-  margin: 0 0 0.75rem;
+  gap: 0.4rem;
+  margin-bottom: 1.25rem;
 }
 
-.product-modal-price {
-  font-weight: 700;
+.meta-row {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.9rem;
 }
 
-.product-modal-note {
-  color: #4b5563;
+.meta-label {
+  color: #6b7280;
+  min-width: 110px;
 }
 
-.product-modal-list {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 0.9rem;
-}
-
-.product-modal-list li::before {
-  content: '✓ ';
+.meta-value {
+  color: #111827;
+  font-weight: 600;
 }
 
 .product-modal-qty-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
 }
 
-.qty-control {
-  display: inline-flex;
+.qty-picker {
+  display: flex;
   align-items: center;
-  gap: 0.5rem;
-}
-
-.qty-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
   border: 1px solid #d1d5db;
-  background: #f9fafb;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.qty-picker button {
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: #f3f4f6;
+  font-size: 1.2rem;
   cursor: pointer;
+  transition: background 0.15s;
 }
 
-.qty-value {
-  min-width: 60px;
+.qty-picker button:hover {
+  background: #e5e7eb;
+}
+
+.qty-display {
+  width: 55px;
   text-align: center;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #111827;
 }
 
-.product-modal-total {
+.qty-unit {
   font-weight: 600;
+  color: #4b5563;
 }
 
-.product-modal-footer {
+.modal-total-row {
   display: flex;
   justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid #f3f4f6;
+}
+
+.total-label {
+  font-size: 1rem;
+  color: #6b7280;
+}
+
+.total-value {
+  font-size: 1.65rem;
+  font-weight: 800;
+}
+
+.modal-action-btns {
+  display: flex;
   gap: 0.75rem;
-  margin-top: 1.1rem;
 }
 
-.product-modal-secondary {
-  flex: 1;
-  border-radius: 999px;
-  border: 1px solid #111827;
-  background: #ffffff;
-  color: #111827;
-  padding: 0.5rem 1rem;
+.btn-modal-fav {
+  background: #f9f9f9;
+  border: 1px solid #e0d6c7;
+  color: #374151;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
   font-size: 0.9rem;
+  font-weight: 600;
   cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
 }
 
-.product-modal-primary {
+.btn-modal-fav.active {
+  background: #fff0f3;
+  border-color: #f9a8d4;
+  color: #be185d;
+}
+
+.btn-modal-add {
   flex: 1;
-  border-radius: 999px;
+  background: #3f4a2f;
+  color: #fff;
   border: none;
-  background: #111827;
-  color: #ffffff;
-  padding: 0.5rem 1rem;
-  font-size: 0.9rem;
+  padding: 0.85rem 1rem;
+  border-radius: 0.75rem;
+  font-size: 1rem;
+  font-weight: 700;
   cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-modal-add:hover:not(:disabled) {
+  background: #4a5638;
+}
+
+.btn-modal-add:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Animations */
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.25s;
+}
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
 }
 </style>

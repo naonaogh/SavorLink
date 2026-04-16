@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Схемы для предприятий."""
 
 from datetime import datetime
@@ -6,6 +8,9 @@ from typing import Optional, List
 from pydantic import BaseModel, EmailStr, field_validator, ConfigDict
 
 from .common import validate_inn, validate_phone
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from .product import ProductShort
 
 
 class EnterpriseShort(BaseModel):
@@ -102,7 +107,12 @@ class EnterpriseRead(BaseModel):
 
     # M2M
     users: List[UserShort] = []
+    products: List[ProductShort] = []
 
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+from .product import ProductShort
+EnterpriseRead.model_rebuild()

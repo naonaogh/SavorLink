@@ -1,12 +1,18 @@
 <script setup lang="ts">
-import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/data/authStore'
 import BasketIcon from '@/assets/icons/basket.svg'
 import TruckIcon from '@/assets/icons/grusovik.svg'
 import DocsIcon from '@/assets/icons/docs.svg'
 import QuestionIcon from '@/assets/icons/questionn.svg'
 
 const router = useRouter()
+const authStore = useAuthStore()
+
+const handleLogout = () => {
+  authStore.logout()
+  router.push('/')
+}
 
 const steps = [
   { title: 'Заказываете нужные товары в каталоге', icon: 'cart' },
@@ -45,16 +51,28 @@ const goLogin = () => {
     <!-- Шапка — скрин 1 -->
     <header class="header">
       <nav class="nav">
-        <a href="/" class="header-logo">Logo</a>
+        <a href="/" class="header-logo">SavorLink</a>
         <div class="nav-links">
           <router-link to="/" class="nav-link">Главная</router-link>
           <router-link to="/catalog" class="nav-link">Каталог</router-link>
-          <router-link to="/profile" class="nav-link">Профиль</router-link>
-          <router-link to="/features" class="nav-link">Возможности</router-link>
-          <router-link to="/reviews" class="nav-link">Отзывы</router-link>
-          <span class="nav-sep" aria-hidden="true">|</span>
-          <router-link to="/register" class="nav-link">Регистрация</router-link>
-          <button type="button" class="btn-login" @click="goLogin">Вход</button>
+
+          <!-- Гостям -->
+          <template v-if="!authStore.token">
+            <router-link to="/features" class="nav-link">Возможности</router-link>
+            <router-link to="/reviews" class="nav-link">Отзывы</router-link>
+            <span class="nav-sep" aria-hidden="true">|</span>
+            <router-link to="/register" class="nav-link">Регистрация</router-link>
+            <button type="button" class="btn-login" @click="goLogin">Вход</button>
+          </template>
+
+          <!-- Авторизованным -->
+          <template v-else>
+            <router-link to="/profile" class="nav-link">Профиль</router-link>
+            <router-link v-if="authStore.user?.role === 'SUPPLIER'" to="/my-products" class="nav-link">Мои товары</router-link>
+            <router-link to="/favorites" class="nav-link">Избранное</router-link>
+            <router-link to="/cart" class="nav-link">Корзина</router-link>
+            <button type="button" class="btn-login" @click="handleLogout">Выйти</button>
+          </template>
         </div>
       </nav>
     </header>
@@ -639,7 +657,7 @@ const goLogin = () => {
 .why-item-text strong {
   font-weight: 700;
 }
-/* ========== Подвал — градиент в той же гамме ========== */
+/* ========== Подвал — без изменений ========== */
 .footer {
   background: linear-gradient(180deg, #364128 0%, #3f4a2f 100%);
   padding: 2rem 1.5rem 1.5rem;

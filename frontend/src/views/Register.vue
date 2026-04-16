@@ -1,27 +1,41 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import api, { getApiErrorMessage } from '@/api'
 
 const route = useRoute()
+const router = useRouter()
+const roleQuery = computed(() => (route.query.role === 'supplier' ? 'supplier' : 'buyer'))
+const role = computed(() => (roleQuery.value === 'supplier' ? 'SUPPLIER' : 'BUYER'))
 
-const role = computed(() => (route.query.role === 'supplier' ? 'supplier' : 'buyer'))
-
-const name = ref('')
 const email = ref('')
-const address = ref('')
 const password = ref('')
 const agree = ref(false)
+const error = ref('')
+const loading = ref(false)
 
-const submit = () => {
+const submit = async () => {
   if (!agree.value) return
-  // позже здесь будет реальный запрос на бек
-  console.log('register', {
-    role: role.value,
-    name: name.value,
-    email: email.value,
-    address: address.value,
-    password: password.value,
-  })
+  
+  error.value = ''
+  loading.value = true
+  
+  try {
+    await api.post('/auth/register', {
+      email: email.value,
+      password: password.value,
+      role: role.value,
+      enterprise_ids: [] // В будущем здесь может быть создание предприятия
+    })
+    
+    // После регистрации — на логин
+    router.push('/login')
+  } catch (apiError: unknown) {
+    error.value = getApiErrorMessage(apiError, 'Ошибка при регистрации')
+    console.error('Registration error:', apiError)
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
@@ -32,26 +46,15 @@ const submit = () => {
         <h1 class="auth-title">
           Регистрация
           <span class="auth-role">
-            {{ role === 'buyer' ? 'покупателя' : 'поставщика' }}
+            {{ role === 'BUYER' ? 'покупателя' : 'поставщика' }}
           </span>
         </h1>
       </header>
 
       <form class="auth-form" @submit.prevent="submit">
-        <div class="auth-row">
-          <label class="field">
-            <span class="field-label">Name</span>
-            <input v-model="name" type="text" class="field-input" autocomplete="name" />
-          </label>
-          <label class="field">
-            <span class="field-label">Email</span>
-            <input v-model="email" type="email" class="field-input" autocomplete="email" />
-          </label>
-        </div>
-
         <label class="field">
-          <span class="field-label">Adress</span>
-          <input v-model="address" type="text" class="field-input" autocomplete="street-address" />
+          <span class="field-label">Email</span>
+          <input v-model="email" type="email" class="field-input" autocomplete="email" />
         </label>
 
         <label class="field">
@@ -66,12 +69,16 @@ const submit = () => {
           </span>
         </label>
 
+        <div v-if="error" class="auth-error">
+          {{ error }}
+        </div>
+
         <div class="auth-actions">
-          <button type="button" class="auth-circle-btn" aria-label="Назад">
+          <router-link to="/login" class="auth-circle-btn" style="text-decoration: none; display: flex; align-items: center; justify-content: center;">
             ←
-          </button>
-          <button type="submit" class="auth-submit">
-            Зарегистрироваться →
+          </router-link>
+          <button type="submit" class="auth-submit" :disabled="loading || !agree">
+            {{ loading ? 'Загрузка...' : 'Зарегистрироваться →' }}
           </button>
         </div>
       </form>
@@ -165,6 +172,16 @@ const submit = () => {
   line-height: 1.4;
 }
 
+.auth-error {
+  background: rgba(220, 38, 38, 0.2);
+  border: 1px solid rgba(220, 38, 38, 0.5);
+  color: #fecaca;
+  padding: 0.75rem;
+  border-radius: 0.7rem;
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+}
+
 .auth-actions {
   margin-top: 0.3rem;
   display: flex;
@@ -194,5 +211,13 @@ const submit = () => {
   font-weight: 600;
   font-size: 0.95rem;
   cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.auth-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: #9ca3af;
 }
 </style>
+

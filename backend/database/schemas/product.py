@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Optional
+from typing import Optional, List
 from decimal import Decimal
 from datetime import datetime
 from pydantic import BaseModel, field_validator, ConfigDict
@@ -100,8 +100,10 @@ class ProductUpdate(BaseModel):
 class ProductShort(BaseModel):
     id: int
     name: str
+    description: Optional[str] = None
     price: Decimal
     min_order_qty: Optional[int] = None
+    quantity_in_stock: Optional[int] = None
     category: CategoryRead
     enterprise: EnterpriseShort
 
@@ -125,3 +127,7 @@ class ProductRead(BaseModel):
     enterprise_name: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+from .enterprise import EnterpriseRead
+ProductRead.model_rebuild()
+ProductShort.model_rebuild()

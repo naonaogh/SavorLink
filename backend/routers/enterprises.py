@@ -8,6 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.database.database import get_session
 from backend.database.schemas.enterprise import EnterpriseCreate, EnterpriseRead, EnterpriseUpdate
 from backend.services.enterprise_service import EnterpriseService
+from backend.routers.deps import get_current_user
+from backend.database.models import User, UserRole
+from fastapi import HTTPException
 
 
 router = APIRouter(prefix="/enterprises", tags=["enterprises"])
@@ -37,9 +40,22 @@ async def get_enterprise(
 async def create_enterprise(
     payload: EnterpriseCreate,
     session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
-    ent = await service.create_enterprise(session, payload)
+    ent = await service.create_enterprise(session, payload, user_id=current_user.id)
     await session.commit()
+    return ent
+
+
+@router.post("/{enterprise_id}/join", response_model=EnterpriseRead)
+async def join_enterprise(
+    enterprise_id: int,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    await service.link_user_to_enterprise(session, enterprise_id, current_user.id)
+    await session.commit()
+    ent = await service.get_enterprise(session, enterprise_id)
     return ent
 
 
@@ -48,7 +64,13 @@ async def update_enterprise(
     enterprise_id: int,
     payload: EnterpriseUpdate,
     session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
+    # Проверка: принадлежит ли предприятие пользователю
+    user_enterprise_ids = [e.id for e in current_user.enterprises]
+    if enterprise_id not in user_enterprise_ids and current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="У вас нет прав на редактирование этого предприятия")
+
     ent = await service.update_enterprise(session, enterprise_id, payload)
     await session.commit()
     return ent

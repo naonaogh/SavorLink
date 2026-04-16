@@ -1,11 +1,43 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+import api, { getApiErrorMessage } from '@/api'
+import { useAuthStore } from '@/data/authStore'
+import { useShopStore } from '@/data/shopStore'
 
+const router = useRouter()
+const authStore = useAuthStore()
+const shopStore = useShopStore()
 const email = ref('')
 const password = ref('')
+const error = ref('')
+const loading = ref(false)
 
-const submit = () => {
-  console.log('login', { email: email.value, password: password.value })
+const submit = async () => {
+  error.value = ''
+  loading.value = true
+  try {
+    const response = await api.post('/auth/login', {
+      email: email.value,
+      password: password.value,
+    })
+    
+    const { token, user } = response.data
+    authStore.setAuth(token, user)
+    
+    // Загружаем данные корзины и избранного
+    await Promise.all([
+      shopStore.fetchCart(),
+      shopStore.fetchFavoriteProducts(),
+    ])
+    
+    router.push('/catalog')
+  } catch (apiError: unknown) {
+    error.value = getApiErrorMessage(apiError, 'Ошибка при входе')
+    console.error('Login error:', apiError)
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
@@ -27,9 +59,13 @@ const submit = () => {
           <input v-model="password" type="password" class="field-input" autocomplete="current-password" />
         </label>
 
+        <div v-if="error" class="auth-error">
+          {{ error }}
+        </div>
+
         <div class="auth-actions">
-          <button type="submit" class="auth-submit">
-            Войти →
+          <button type="submit" class="auth-submit" :disabled="loading">
+            {{ loading ? 'Загрузка...' : 'Войти →' }}
           </button>
         </div>
       </form>
@@ -94,6 +130,16 @@ const submit = () => {
   font-size: 0.9rem;
 }
 
+.auth-error {
+  background: rgba(220, 38, 38, 0.2);
+  border: 1px solid rgba(220, 38, 38, 0.5);
+  color: #fecaca;
+  padding: 0.75rem;
+  border-radius: 0.7rem;
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+}
+
 .auth-actions {
   margin-top: 0.3rem;
   display: flex;
@@ -109,5 +155,13 @@ const submit = () => {
   font-weight: 600;
   font-size: 0.95rem;
   cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.auth-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: #9ca3af;
 }
 </style>
+

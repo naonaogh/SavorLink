@@ -23,8 +23,17 @@ class UserService:
             email=str(data.email),
             password_hash=self.auth.hash_password(data.password),
             role=data.role,
-            enterprise_id=data.enterprise_id,
         )
+
+        # Обрабатываем связи с предприятиями
+        if data.enterprise_ids:
+            from sqlalchemy import select
+            from backend.database.models import Enterprise
+            stmt = select(Enterprise).where(Enterprise.id.in_(data.enterprise_ids))
+            res = await session.execute(stmt)
+            enterprises = res.scalars().all()
+            user.enterprises.extend(enterprises)
+
         return await self.repo.create(session, user)
 
     async def login(self, session: AsyncSession, *, email: str, password: str) -> User:
@@ -52,7 +61,8 @@ class UserService:
                 raise HTTPException(status_code=400, detail="old_password неверный")
             user.password_hash = self.auth.hash_password(data.password)
 
-        # phone пока не в модели БД — игнорируем до добавления колонки
+        if data.phone is not None:
+            user.phone = data.phone
 
         await session.flush()
         await session.refresh(user)
