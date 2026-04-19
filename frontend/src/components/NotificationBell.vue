@@ -1,13 +1,14 @@
-
 <script setup lang="ts">
+import { NotificationIcon } from '@/assets/icons/png'
+
 defineProps<{
-  count: number;
-}>();
+  count: number
+}>()
 </script>
 
 <template>
   <div class="bell-container" :class="{ 'has-unread': count > 0 }">
-    <div class="bell-icon">🔔</div>
+    <img :src="NotificationIcon" alt="" class="bell-icon" aria-hidden="true" />
     <div v-if="count > 0" class="badge">
       {{ count > 9 ? '9+' : count }}
     </div>
@@ -20,53 +21,60 @@ defineProps<{
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  background: white;
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
-  border: 1px solid #e5e7eb;
+  background: linear-gradient(135deg, #ffffff, #eef7e7);
+  border: 1px solid rgba(76, 124, 42, 0.14);
   font-size: 1.25rem;
-  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transition: all 0.25s ease;
   cursor: pointer;
+  color: #395127;
 }
 
 .bell-container:hover {
-  transform: scale(1.1) rotate(15deg);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  transform: translateY(-1px) scale(1.04);
+  box-shadow: 0 8px 20px rgba(62, 94, 29, 0.12);
+}
+
+.bell-icon {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
 }
 
 .has-unread .bell-icon {
-  animation: ring 2s infinite ease-in-out;
+  animation: ring 2.2s infinite ease-in-out;
 }
 
 .badge {
   position: absolute;
   top: -4px;
   right: -4px;
-  background: #ef4444;
+  background: linear-gradient(135deg, #ef4444, #f97316);
   color: white;
-  font-size: 0.65rem;
+  font-size: 0.66rem;
   font-weight: 800;
-  width: 18px;
+  min-width: 18px;
   height: 18px;
-  border-radius: 50%;
+  padding: 0 4px;
+  border-radius: 999px;
   display: flex;
   align-items: center;
   justify-content: center;
   border: 2px solid white;
-  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.25);
 }
 
 @keyframes ring {
   0% { transform: rotate(0); }
-  5% { transform: rotate(20deg); }
-  10% { transform: rotate(-18deg); }
-  15% { transform: rotate(14deg); }
-  20% { transform: rotate(-10deg); }
-  25% { transform: rotate(6deg); }
-  30% { transform: rotate(-4deg); }
-  35% { transform: rotate(2deg); }
-  40% { transform: rotate(0); }
+  5% { transform: rotate(18deg); }
+  10% { transform: rotate(-16deg); }
+  15% { transform: rotate(12deg); }
+  20% { transform: rotate(-8deg); }
+  25% { transform: rotate(4deg); }
+  30% { transform: rotate(-2deg); }
+  35% { transform: rotate(0); }
   100% { transform: rotate(0); }
 }
 </style>

@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { useShopStore } from '@/data/shopStore'
-import { useAuthStore } from '@/data/authStore'
-import CommonNavbar from '@/components/CommonNavbar.vue'
+import { useShopStore } from '@/stores/shopStore'
+import { useAuthStore } from '@/stores/authStore'
+import { CalendarIcon, CloseIcon, DocumentIcon, DoneIcon, OrganizationIcon, TruckIcon } from '@/assets/icons/png'
 
 import NotificationBell from '@/components/NotificationBell.vue'
 
@@ -24,7 +24,7 @@ const errorMsg = ref<string | null>(null)
 
 onMounted(async () => {
   if (!authStore.token) {
-    router.push('/login')
+    router.push('/auth')
     return
   }
   if (authStore.user?.role !== 'SUPPLIER') {
@@ -47,15 +47,30 @@ const historyOrders = computed(() =>
 )
 
 const statusLabel: Record<string, { text: string; icon: string; class: string }> = {
-  CREATED: { text: 'Новый запрос', icon: '📝', class: 'status-created' },
-  CONFIRMED: { text: 'Подтверждён', icon: '✅', class: 'status-confirmed' },
-  IN_PROGRESS: { text: 'В процессе', icon: '🚚', class: 'status-inprogress' },
-  COMPLETED: { text: 'Завершён успешно', icon: '💎', class: 'status-completed' },
-  CANCELLED: { text: 'Отклонён', icon: '❌', class: 'status-cancelled' },
+  CREATED: { text: 'Новый запрос', icon: 'calendar', class: 'status-created' },
+  CONFIRMED: { text: 'Подтверждён', icon: 'done', class: 'status-confirmed' },
+  IN_PROGRESS: { text: 'В процессе', icon: 'truck', class: 'status-inprogress' },
+  COMPLETED: { text: 'Завершён успешно', icon: 'done', class: 'status-completed' },
+  CANCELLED: { text: 'Отклонён', icon: 'close', class: 'status-cancelled' },
 }
 
 const getStatusInfo = (status: string) =>
-  statusLabel[status] || { text: status, icon: '📄', class: 'status-created' }
+  statusLabel[status] || { text: status, icon: 'document', class: 'status-created' }
+
+const statusIcon = (icon: string) => {
+  switch (icon) {
+    case 'calendar':
+      return CalendarIcon
+    case 'done':
+      return DoneIcon
+    case 'close':
+      return CloseIcon
+    case 'truck':
+      return TruckIcon
+    default:
+      return DocumentIcon
+  }
+}
 
 const formatDate = (dt: string) => {
   const d = new Date(dt)
@@ -120,8 +135,6 @@ const rejectOrder = async (orderId: number) => {
 
 <template>
   <div class="page">
-    <CommonNavbar />
-
     <main class="page-main">
       <div class="glass-header">
         <div class="header-content">
@@ -150,11 +163,11 @@ const rejectOrder = async (orderId: number) => {
       <!-- Toasts -->
       <TransitionGroup name="toast">
         <div v-if="successMsg" key="success" class="toast toast-success">
-          <span class="toast-icon">✨</span>
+          <img :src="DoneIcon" alt="" class="toast-icon" aria-hidden="true" />
           <div class="toast-body">{{ successMsg }}</div>
         </div>
         <div v-if="errorMsg" key="error" class="toast toast-error">
-          <span class="toast-icon">⚠️</span>
+          <img :src="CloseIcon" alt="" class="toast-icon" aria-hidden="true" />
           <div class="toast-body">{{ errorMsg }}</div>
         </div>
       </TransitionGroup>
@@ -166,7 +179,9 @@ const rejectOrder = async (orderId: number) => {
       </div>
 
       <div v-else-if="orders.length === 0" class="empty-hero">
-        <div class="hero-icon">📦</div>
+        <div class="hero-icon">
+          <img :src="DocumentIcon" alt="" class="hero-icon-img" aria-hidden="true" />
+        </div>
         <h2>Заказов пока нет</h2>
         <p>Ваши товары ждут своих покупателей. Как только кто-то оформит заказ, он появится здесь.</p>
       </div>
@@ -191,7 +206,9 @@ const rejectOrder = async (orderId: number) => {
 
               <div class="card-body">
                 <div class="client-info">
-                  <div class="avatar">🏢</div>
+                  <div class="avatar">
+                    <img :src="OrganizationIcon" alt="" class="avatar-icon" aria-hidden="true" />
+                  </div>
                   <div class="client-details">
                     <span class="client-name">{{ order.buyer_enterprise?.short_name || 'Покупатель' }}</span>
                     <span class="client-region">{{ order.buyer_enterprise?.region || 'Регион не указан' }}</span>
@@ -244,7 +261,7 @@ const rejectOrder = async (orderId: number) => {
             >
               <div class="card-header">
                 <div class="status-chip" :class="getStatusInfo(order.status).class">
-                  <span class="chip-icon">{{ getStatusInfo(order.status).icon }}</span>
+                  <img :src="statusIcon(getStatusInfo(order.status).icon)" alt="" class="chip-icon" aria-hidden="true" />
                   {{ getStatusInfo(order.status).text }}
                 </div>
                 <div class="id-badge">#{{ order.id }}</div>
@@ -252,7 +269,9 @@ const rejectOrder = async (orderId: number) => {
               
               <div class="card-body">
                 <div class="client-info">
-                  <div class="avatar avatar--sm">🏢</div>
+                  <div class="avatar avatar--sm">
+                    <img :src="OrganizationIcon" alt="" class="avatar-icon" aria-hidden="true" />
+                  </div>
                   <div class="client-details">
                     <span class="client-name">{{ order.buyer_enterprise?.short_name }}</span>
                     <span class="client-region">{{ order.buyer_enterprise?.region }}</span>
@@ -333,47 +352,45 @@ const rejectOrder = async (orderId: number) => {
 <style scoped>
 .page {
   min-height: 100vh;
-  background-color: #f7f3e9;
-  background-image: 
-    radial-gradient(at 0% 0%, hsla(38,39%,89%,1) 0, transparent 50%), 
-    radial-gradient(at 50% 0%, hsla(84,22%,88%,1) 0, transparent 50%), 
-    radial-gradient(at 100% 0%, hsla(43,36%,86%,1) 0, transparent 50%);
-  color: #2c3324;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: 'Manrope', sans-serif;
+  background: transparent;
+  color: #20311c;
 }
 
+/* MAIN */
 .page-main {
   max-width: 1100px;
   margin: 0 auto;
   padding: 3rem 1.5rem 6rem;
 }
 
-/* Header */
+/* HEADER (GLASS) */
 .glass-header {
-  background: rgba(255, 255, 255, 0.4);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  border-radius: 24px;
-  padding: 2rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 3.5rem;
-  box-shadow: 0 8px 32px rgba(63, 74, 47, 0.05);
+
+  padding: 2rem;
+  margin-bottom: 3rem;
+
+  border-radius: 1.7rem;
+  background: rgba(255,255,255,0.78);
+  border: 1px solid rgba(76,124,42,0.16);
+  backdrop-filter: blur(18px);
+
+  box-shadow: 0 24px 60px rgba(54,87,21,0.12);
 }
 
 .page-title {
-  font-size: 2.25rem;
-  font-weight: 900;
-  color: #3f4a2f;
-  margin: 0 0 0.5rem;
-  letter-spacing: -0.02em;
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: #20311c;
+  margin: 0;
 }
 
 .page-subtitle {
-  color: #6b7280;
-  font-size: 1rem;
+  font-size: 0.9rem;
+  color: #5d6b52;
   margin: 0;
 }
 
@@ -381,404 +398,275 @@ const rejectOrder = async (orderId: number) => {
   display: flex;
   align-items: center;
   gap: 1rem;
-  margin-bottom: 0.5rem;
 }
 
-.title-with-bell .page-title {
-  margin-bottom: 0;
-}
-
+/* STATS */
 .header-stats {
   display: flex;
   gap: 1rem;
 }
 
 .stat-card {
-  background: white;
-  padding: 1rem 1.5rem;
-  border-radius: 18px;
+  width: 90px;
+  padding: 1rem;
+
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-width: 90px;
-  border: 1px solid #e5e7eb;
-  transition: all 0.3s ease;
+
+  border-radius: 1.2rem;
+  background: rgba(255,255,255,0.78);
+  border: 1px solid rgba(76,124,42,0.16);
+  backdrop-filter: blur(18px);
+
+  transition: 0.2s ease;
 }
 
 .stat-card--active {
-  border-color: #fbbf24;
-  background: #fffbeb;
-  transform: translateY(-4px);
-  box-shadow: 0 10px 20px rgba(251, 191, 36, 0.1);
+  border-color: #6da13d;
+  box-shadow: 0 10px 25px rgba(76,124,42,0.15);
 }
 
 .stat-val {
-  font-size: 1.5rem;
+  font-size: 1.4rem;
   font-weight: 800;
-  color: #3f4a2f;
+  color: #20311c;
 }
 
 .stat-lab {
   font-size: 0.75rem;
-  font-weight: 600;
-  color: #9ca3af;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  color: #5d6b52;
 }
 
-/* Toasts */
+/* TOAST */
 .toast {
   position: fixed;
   top: 90px;
   right: 2rem;
+
   display: flex;
   align-items: center;
   gap: 1rem;
-  padding: 1rem 1.75rem;
-  border-radius: 16px;
-  backdrop-filter: blur(10px);
-  z-index: 1000;
-  box-shadow: 0 15px 35px rgba(0,0,0,0.1);
-  min-width: 300px;
-  border: 1px solid rgba(255,255,255,0.3);
+
+  padding: 1rem 1.5rem;
+  border-radius: 1.5rem;
+
+  background: rgba(255,255,255,0.85);
+  border: 1px solid rgba(76,124,42,0.16);
+  backdrop-filter: blur(18px);
+
+  box-shadow: 0 24px 60px rgba(54,87,21,0.15);
 }
 
-.toast-success { background: rgba(209, 250, 229, 0.9); color: #065f46; }
-.toast-error { background: rgba(254, 226, 226, 0.9); color: #991b1b; }
+.toast-icon,
+.chip-icon,
+.hero-icon-img {
+  display: block;
+  object-fit: contain;
+}
 
-.toast-enter-active, .toast-leave-active { transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-.toast-enter-from { opacity: 0; transform: translateX(50px) scale(0.9); }
-.toast-leave-to { opacity: 0; transform: translateY(-20px); }
+.toast-icon {
+  width: 18px;
+  height: 18px;
+}
 
-/* Sections */
+.chip-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.hero-icon-img {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto;
+}
+
+.avatar-icon {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  display: block;
+}
+
+.toast-success {
+  color: #4c7c2a;
+}
+
+.toast-error {
+  color: #991b1b;
+}
+
+/* SECTIONS */
 .sections-grid {
   display: flex;
   flex-direction: column;
-  gap: 4rem;
+  gap: 3rem;
 }
 
 .section-heading {
-  font-size: 1.35rem;
+  font-size: 1.2rem;
   font-weight: 800;
-  color: #3f4a2f;
-  margin: 0 0 1.5rem;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
+  color: #20311c;
+  margin-bottom: 1rem;
 }
 
-.pulse-dot {
-  width: 10px;
-  height: 10px;
-  background: #fbbf24;
-  border-radius: 50%;
-  box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.7);
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.7); }
-  70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(251, 191, 36, 0); }
-  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(251, 191, 36, 0); }
-}
-
-/* Cards */
-.cards-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
+/* CARDS */
 .premium-card {
-  background: white;
-  border-radius: 24px;
-  border: 1px solid #e5e7eb;
-  padding: 1.75rem;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  background: rgba(255,255,255,0.78);
+  border: 1px solid rgba(76,124,42,0.16);
+  border-radius: 1.7rem;
+  padding: 1.5rem;
+
+  backdrop-filter: blur(18px);
+  box-shadow: 0 24px 60px rgba(54,87,21,0.08);
+
+  transition: 0.25s ease;
 }
 
 .premium-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 20px 40px rgba(0,0,0,0.06);
+  transform: translateY(-3px);
+  box-shadow: 0 30px 70px rgba(54,87,21,0.15);
 }
 
 .premium-card--new {
-  border-left: 6px solid #fbbf24;
+  border-left: 5px solid #fbbf24;
 }
 
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-}
-
-.id-badge {
-  font-weight: 800;
-  font-size: 0.9rem;
-  color: #9ca3af;
-  font-family: 'JetBrains Mono', monospace;
-}
-
-.date-tag {
-  font-size: 0.85rem;
-  color: #6b7280;
-  background: #f3f4f6;
-  padding: 0.25rem 0.75rem;
-  border-radius: 999px;
-  font-weight: 500;
-}
-
+/* CLIENT */
 .client-info {
   display: flex;
-  align-items: center;
   gap: 1rem;
-  margin-bottom: 1.5rem;
+  align-items: center;
+  margin-bottom: 1rem;
 }
 
 .avatar {
-  width: 48px;
-  height: 48px;
-  background: #f1f5f9;
-  border-radius: 14px;
+  width: 42px;
+  height: 42px;
+  border-radius: 1rem;
+
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.5rem;
-}
 
-.client-details {
-  display: flex;
-  flex-direction: column;
+  background: rgba(241,245,249,0.8);
 }
 
 .client-name {
   font-weight: 800;
-  font-size: 1.15rem;
-  color: #1f2937;
+  color: #20311c;
 }
 
 .client-region {
-  font-size: 0.85rem;
-  color: #6b7280;
+  font-size: 0.8rem;
+  color: #5d6b52;
 }
 
+/* ITEMS */
 .products-mini {
-  background: #f9fafb;
-  border-radius: 16px;
-  padding: 1.25rem;
-  margin-bottom: 1.5rem;
+  background: rgba(249,250,251,0.6);
+  border-radius: 1.2rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
 }
 
 .mini-item {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 0.5rem;
-}
-
-.mini-item:last-child { margin-bottom: 0; }
-
-.m-name { font-size: 0.95rem; font-weight: 600; color: #374151; }
-.m-dots { flex: 1; border-bottom: 1px dashed #d1d5db; height: 10px; }
-.m-qty { font-weight: 700; color: #3f4a2f; }
-
-.total-bar {
-  display: flex;
   justify-content: space-between;
-  align-items: center;
-  padding-top: 1.25rem;
-  border-top: 1px solid #f3f4f6;
+  font-size: 0.9rem;
+  margin-bottom: 0.3rem;
 }
 
-.t-label { font-size: 0.9rem; color: #6b7280; }
-.t-value { font-size: 1.5rem; font-weight: 900; color: #059669; }
-
-.card-actions {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 1rem;
-  margin-top: 1.75rem;
+.m-name {
+  font-weight: 600;
+  color: #2f3b2a;
 }
 
+.m-qty {
+  font-weight: 800;
+  color: #3f4a2f;
+}
+
+/* TOTAL */
+.t-value {
+  font-size: 1.4rem;
+  font-weight: 900;
+
+  color: #4c7c2a;
+}
+
+/* BUTTONS */
 .btn-action {
-  padding: 0.85rem 1.5rem;
-  border-radius: 14px;
+  border-radius: 999px;
+  padding: 0.8rem 1.2rem;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s;
   border: none;
-  font-size: 0.95rem;
 }
 
 .btn-action--confirm {
-  background: #3f4a2f;
+  background: linear-gradient(135deg, #6da13d, #4c7c2a);
   color: white;
 }
 
-.btn-action--confirm:hover:not(:disabled) {
-  background: #4a5638;
-  box-shadow: 0 4px 12px rgba(63, 74, 47, 0.3);
-}
-
 .btn-action--reject {
-  background: #fff;
-  color: #ef4444;
-  border: 1px solid #fee2e2;
+  background: rgba(254, 226, 226, 0.8);
+  color: #991b1b;
 }
 
-.btn-action--reject:hover { background: #fef2f2; }
-
-.btn-action:disabled {
-  opacity: 0.5;
-  cursor: wait;
-}
-
-/* Chips */
+/* STATUS CHIP */
 .status-chip {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.4rem 0.9rem;
+  padding: 0.4rem 0.8rem;
   border-radius: 999px;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
+  background: rgba(255,255,255,0.7);
+  border: 1px solid rgba(76,124,42,0.16);
 }
 
-.status-confirmed { background: #dcfce7; color: #166534; }
-.status-inprogress { background: #dbeafe; color: #1e40af; }
-.status-completed { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
-.status-cancelled { background: #fee2e2; color: #991b1b; }
-
-/* History Table */
+/* TABLE */
 .history-table-wrapper {
-  background: white;
-  border-radius: 24px;
-  overflow: hidden;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.03);
-  border: 1px solid #e5e7eb;
+  background: rgba(255,255,255,0.78);
+  border-radius: 1.7rem;
+  border: 1px solid rgba(76,124,42,0.16);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 24px 60px rgba(54,87,21,0.08);
 }
 
-.history-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.9rem;
-}
-
-.history-table th {
-  background: #f8fafc;
-  padding: 1.25rem;
-  text-align: left;
-  font-weight: 700;
-  color: #64748b;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.history-table td {
-  padding: 1.25rem;
-  border-bottom: 1px solid #f1f5f9;
-}
-
-.history-table tr:last-child td { border-bottom: none; }
-
-.td-id { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #94a3b8; }
-.td-date { color: #64748b; }
-.td-client { font-weight: 700; color: #1e293b; }
-.td-amount { font-weight: 800; color: #059669; }
-
-.small-badge {
-  padding: 0.25rem 0.65rem;
-  border-radius: 6px;
-  font-size: 0.7rem;
-  font-weight: 800;
-}
-
-/* Animations */
-.dots-loader {
-  display: inline-block;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: currentColor;
-  box-shadow: 8px 0 currentColor, 16px 0 currentColor;
-  animation: dots 1.5s infinite linear;
-  margin-right: 20px;
-}
-
-@keyframes dots {
-  0% { box-shadow: 8px 0 rgba(0,0,0,0.2), 16px 0 rgba(0,0,0,0.2); }
-  33% { box-shadow: 8px 0 currentColor, 16px 0 rgba(0,0,0,0.2); }
-  66% { box-shadow: 8px 0 currentColor, 16px 0 currentColor; }
-}
-
+/* LOADER */
 .loader {
   width: 40px;
   height: 40px;
-  border: 4px solid #f3f4f6;
-  border-top-color: #3f4a2f;
   border-radius: 50%;
-  animation: spin 1s infinite linear;
-  margin: 0 auto 1rem;
+  border: 4px solid rgba(76,124,42,0.2);
+  border-top-color: #4c7c2a;
+  animation: spin 1s linear infinite;
 }
 
-@keyframes spin { to { transform: rotate(360deg); } }
-
-.wait-status {
-  display: flex;
-  align-items: center;
-  font-size: 0.85rem;
-  color: #6b7280;
-  font-style: italic;
-  padding: 1rem 0 0;
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
-.td-amount { font-weight: 800; color: #059669; }
-
-.client-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
+/* EMPTY */
+.empty-hero {
+  background: rgba(255,255,255,0.78);
+  border: 1px solid rgba(76,124,42,0.16);
+  border-radius: 1.7rem;
+  padding: 4rem 2rem;
+  text-align: center;
+  backdrop-filter: blur(18px);
 }
 
-.client-cell small {
-  color: #64748b;
-  font-size: 0.75rem;
-  font-weight: 500;
+/* ANIMATIONS */
+.toast-enter-active,
+.toast-leave-active {
+  transition: 0.2s ease;
 }
 
-.td-items {
-  max-width: 250px;
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
 }
-
-.items-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  font-size: 0.82rem;
-  color: #475569;
-}
-
-.avatar--sm {
-  width: 36px !important;
-  height: 36px !important;
-  font-size: 1.1rem !important;
-}
-
-.products-mini--compact {
-  padding: 0.75rem 1rem !important;
-  margin-bottom: 1rem !important;
-}
-
-.small-badge {
-  padding: 0.25rem 0.65rem;
-  border-radius: 6px;
-  font-size: 0.7rem;
-  font-weight: 800;
-}
-
-/* Utility */
-.spin { display: inline-block; animation: spin 2s infinite linear; }
 </style>

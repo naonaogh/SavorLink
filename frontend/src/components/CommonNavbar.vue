@@ -1,87 +1,81 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import { useAuthStore } from '@/data/authStore'
-import { useShopStore } from '@/data/shopStore'
+import { useRoute, useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/authStore'
+import { useShopStore } from '@/stores/shopStore'
 
 const authStore = useAuthStore()
 const shopStore = useShopStore()
 const router = useRouter()
 const route = useRoute()
 
-const favoritesCount = computed(() => shopStore.state.favoriteProducts.length)
-
-const cartCount = computed(() =>
-  shopStore.state.cartItems.reduce((sum, item) => sum + item.quantity, 0),
+const favoritesCount = computed(
+  () => shopStore.state.favoriteProducts.length + shopStore.state.favoriteSuppliers.length,
 )
+
+const cartCount = computed(() => shopStore.state.cartItems.length)
+
+const isGuest = computed(() => !authStore.token)
+const isSupplier = computed(() => authStore.user?.role === 'SUPPLIER')
+
+const isActive = (path: string) => {
+  if (path === '/cabinet') {
+    return route.path.startsWith('/cabinet')
+  }
+
+  return route.path === path
+}
 
 const handleLogout = () => {
   authStore.logout()
   shopStore.state.cartItems = []
   shopStore.state.favoriteProducts = []
   shopStore.state.favoriteProductIds = []
+  shopStore.state.favoriteSuppliers = []
   router.push('/')
 }
 
-const isGuest = computed(() => !authStore.token)
-const isSupplier = computed(() => authStore.user?.role === 'SUPPLIER')
-
-const isActive = (path: string) => route.path === path
-
 onMounted(async () => {
-  if (authStore.token) {
-    await Promise.all([
-      shopStore.fetchCart(),
-      shopStore.fetchFavoriteProducts(),
-    ])
-  }
+  if (!authStore.token) return
+
+  await Promise.all([
+    shopStore.fetchCart(),
+    shopStore.fetchFavoriteProducts(),
+    shopStore.fetchFavoriteSuppliers(),
+  ])
 })
 </script>
 
 <template>
   <header class="common-header">
     <nav class="common-nav">
-      <router-link to="/" class="logo">SavorLink</router-link>
+      <router-link to="/" class="logo">
+        <span class="logo-mark">S</span>
+        <span class="logo-text">SavorLink</span>
+      </router-link>
 
       <div class="nav-links">
-        <!-- Всегда видимые -->
         <router-link to="/" class="nav-link" :class="{ active: isActive('/') }">Главная</router-link>
         <router-link to="/catalog" class="nav-link" :class="{ active: isActive('/catalog') }">Каталог</router-link>
 
-        <!-- Только гостям -->
         <template v-if="isGuest">
           <router-link to="/features" class="nav-link">Возможности</router-link>
           <router-link to="/reviews" class="nav-link">Отзывы</router-link>
-          <span class="nav-sep">|</span>
-          <router-link to="/register" class="nav-link">Регистрация</router-link>
-          <router-link to="/login" class="nav-link nav-link--cta">Вход</router-link>
+          <router-link :to="{ path: '/auth', query: { mode: 'register' } }" class="nav-link nav-link--cta">
+            Регистрация
+          </router-link>
+          <router-link to="/auth" class="nav-link">Вход</router-link>
         </template>
 
-        <!-- Авторизованным пользователям -->
         <template v-else>
-          <router-link to="/profile" class="nav-link" :class="{ active: isActive('/profile') }">Профиль</router-link>
-
-          <!-- Заказы - для всех ролей, но ведут на разные страницы -->
-          <router-link
-            :to="isSupplier ? '/supplier-orders' : '/my-orders'"
-            class="nav-link"
-            :class="{ active: isActive(isSupplier ? '/supplier-orders' : '/my-orders') }"
-          >
-            {{ isSupplier ? 'Заказы' : 'Мои заказы' }}
-          </router-link>
-
-          <router-link v-if="isSupplier" to="/my-products" class="nav-link" :class="{ active: isActive('/my-products') }">
-            Мои товары
-          </router-link>
-
-          <router-link to="/favorites" class="nav-link" :class="{ active: isActive('/favorites') }">
+          <router-link to="/cabinet/profile" class="nav-link" :class="{ active: isActive('/cabinet') }">Кабинет</router-link>
+          <router-link v-if="!isSupplier" to="/favorites" class="nav-link" :class="{ active: isActive('/favorites') }">
             Избранное{{ favoritesCount > 0 ? ` (${favoritesCount})` : '' }}
           </router-link>
-          <router-link to="/cart" class="nav-link" :class="{ active: isActive('/cart') }">
+          <router-link v-if="!isSupplier" to="/cart" class="nav-link" :class="{ active: isActive('/cart') }">
             Корзина{{ cartCount > 0 ? ` (${cartCount})` : '' }}
           </router-link>
-
-          <button @click="handleLogout" class="btn-logout">Выйти</button>
+          <button type="button" class="btn-logout" @click="handleLogout">Выйти</button>
         </template>
       </div>
     </nav>
@@ -90,15 +84,7 @@ onMounted(async () => {
 
 <style scoped>
 .common-header {
-  background: linear-gradient(120deg, #364128 0%, #3f4a2f 60%, #4a5638 100%);
-  padding: 0.875rem 1.5rem;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.15);
-  min-height: 64px;
-  display: flex;
-  align-items: center;
+  padding: 0.7rem 1rem 0;
 }
 
 .common-nav {
@@ -108,73 +94,115 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  border-radius: 1.35rem;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(76, 124, 42, 0.14);
+  box-shadow: 0 18px 48px rgba(38, 66, 18, 0.1);
+  backdrop-filter: blur(18px);
 }
 
 .logo {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: #f0e5d1;
-  text-decoration: none;
-  letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  white-space: nowrap;
+}
+
+.logo-mark {
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--sl-green-1), var(--sl-green-2));
+  color: #20311c;
+  font-weight: 900;
+  box-shadow: 0 10px 24px rgba(109, 161, 61, 0.22);
+}
+
+.logo-text {
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: #20311c;
 }
 
 .nav-links {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
+  gap: 0.55rem;
   flex-wrap: wrap;
 }
 
 .nav-link {
-  color: #e7dbc5;
-  text-decoration: none;
-  font-size: 0.95rem;
-  transition: color 0.2s;
+  color: #4d5e42;
+  font-size: 0.94rem;
+  transition: all 0.2s ease;
   white-space: nowrap;
+  padding: 0.55rem 0.9rem;
+  border-radius: 999px;
 }
 
 .nav-link:hover,
 .nav-link.active {
-  color: #fff;
+  color: #20311c;
+  background: rgba(165, 219, 116, 0.18);
 }
 
 .nav-link--cta {
-  background: rgba(255,255,255,0.15);
-  padding: 0.3rem 0.85rem;
-  border-radius: 6px;
-  color: #fff;
+  background: linear-gradient(135deg, var(--sl-green-1), var(--sl-green-2));
+  color: #20311c;
+  box-shadow: 0 10px 24px rgba(109, 161, 61, 0.16);
 }
 
 .nav-link--cta:hover {
-  background: rgba(255,255,255,0.25);
-}
-
-.nav-sep {
-  color: rgba(255,255,255,0.25);
+  background: linear-gradient(135deg, #b7e58a, #d6f1bf);
 }
 
 .btn-logout {
-  background: rgba(255,255,255,0.1);
-  border: 1px solid rgba(255,255,255,0.2);
-  color: #fff;
-  padding: 0.4rem 1rem;
-  border-radius: 6px;
+  background: linear-gradient(135deg, #ffffff, #f2fbeb);
+  border: 1px solid rgba(76, 124, 42, 0.14);
+  color: #304125;
+  padding: 0.55rem 1rem;
+  border-radius: 999px;
   cursor: pointer;
   font-size: 0.9rem;
-  transition: background 0.2s;
+  transition: all 0.2s ease;
   white-space: nowrap;
 }
 
 .btn-logout:hover {
-  background: rgba(255,255,255,0.22);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 18px rgba(82, 112, 34, 0.14);
+}
+
+@media (max-width: 1024px) {
+  .common-nav {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 
 @media (max-width: 768px) {
-  .nav-links {
-    gap: 0.75rem;
+  .common-header {
+    padding-inline: 0.7rem;
   }
+
+  .common-nav {
+    padding: 0.85rem;
+  }
+
+  .nav-links {
+    gap: 0.4rem;
+  }
+
   .nav-link {
     font-size: 0.82rem;
+    padding: 0.45rem 0.72rem;
   }
 }
 </style>
+

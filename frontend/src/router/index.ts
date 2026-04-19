@@ -2,17 +2,22 @@ import { createRouter, createWebHistory } from 'vue-router'
 import Home from '@/views/Home.vue'
 import Catalog from '@/views/Catalog.vue'
 import SupplierDetail from '@/views/SupplierDetail.vue'
-import Register from '@/views/Register.vue'
-import Login from '@/views/Login.vue'
+import Auth from '@/views/Auth.vue'
 import Favorites from '@/views/Favorites.vue'
 import Cart from '@/views/Cart.vue'
 import Profile from '@/views/Profile.vue'
 import Features from '@/views/Features.vue'
 import Reviews from '@/views/Reviews.vue'
 import MyProducts from '@/views/MyProducts.vue'
-import MyOrders from '@/views/MyOrders.vue'
-import SupplierOrders from '@/views/SupplierOrders.vue'
-import { useAuthStore } from '@/data/authStore'
+import Chat from '@/views/Chat.vue'
+import Analytics from '@/views/Analytics.vue'
+import Checkout from '@/views/Checkout.vue'
+import Compare from '@/views/Compare.vue'
+import Documents from '@/views/Documents.vue'
+import Notifications from '@/views/Notifications.vue'
+import CabinetLayout from '@/components/CabinetLayout.vue'
+import CabinetOrders from '@/views/CabinetOrders.vue'
+import { useAuthStore } from '@/stores/authStore'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -20,30 +25,42 @@ const router = createRouter({
     { path: '/', name: 'Home', component: Home },
     { path: '/catalog', name: 'Catalog', component: Catalog },
     { path: '/suppliers/:id', name: 'SupplierDetail', component: SupplierDetail },
-    { path: '/register', name: 'Register', component: Register },
-    { path: '/login', name: 'Login', component: Login },
+    { path: '/auth', name: 'Auth', component: Auth },
+    { path: '/login', redirect: '/auth' },
+    { path: '/register', redirect: '/auth?mode=register' },
     { path: '/favorites', name: 'Favorites', component: Favorites },
     { path: '/cart', name: 'Cart', component: Cart },
-    { path: '/profile', name: 'Profile', component: Profile },
+    { path: '/checkout', name: 'Checkout', component: Checkout },
     { path: '/features', name: 'Features', component: Features },
     { path: '/reviews', name: 'Reviews', component: Reviews },
+    { path: '/compare', name: 'Compare', component: Compare },
+    { path: '/profile', redirect: '/cabinet/profile' },
+    { path: '/chat', redirect: '/cabinet/chat' },
+    { path: '/analytics', redirect: '/cabinet/analytics' },
+    { path: '/documents', redirect: '/cabinet/documents' },
+    { path: '/notifications', redirect: '/cabinet/notifications' },
+    { path: '/my-products', redirect: '/cabinet/my-products' },
+    { path: '/my-orders', redirect: '/cabinet/orders' },
+    { path: '/supplier-orders', redirect: '/cabinet/orders' },
     {
-      path: '/my-products',
-      name: 'MyProducts',
-      component: MyProducts,
-      meta: { requiresRole: 'SUPPLIER' }
-    },
-    {
-      path: '/my-orders',
-      name: 'MyOrders',
-      component: MyOrders,
-      meta: { requiresRole: 'BUYER' }
-    },
-    {
-      path: '/supplier-orders',
-      name: 'SupplierOrders',
-      component: SupplierOrders,
-      meta: { requiresRole: 'SUPPLIER' }
+      path: '/cabinet',
+      component: CabinetLayout,
+      meta: { requiresAuth: true },
+      children: [
+        { path: '', redirect: '/cabinet/profile' },
+        { path: 'profile', name: 'CabinetProfile', component: Profile },
+        { path: 'orders', name: 'CabinetOrders', component: CabinetOrders },
+        {
+          path: 'my-products',
+          name: 'CabinetMyProducts',
+          component: MyProducts,
+          meta: { requiresRole: 'SUPPLIER' },
+        },
+        { path: 'chat', name: 'CabinetChat', component: Chat },
+        { path: 'analytics', name: 'CabinetAnalytics', component: Analytics },
+        { path: 'documents', name: 'CabinetDocuments', component: Documents },
+        { path: 'notifications', name: 'CabinetNotifications', component: Notifications },
+      ],
     },
   ],
 })
@@ -51,9 +68,15 @@ const router = createRouter({
 router.beforeEach((to) => {
   const authStore = useAuthStore()
 
+  if (to.matched.some((record) => record.meta.requiresAuth)) {
+    if (!authStore.token) {
+      return '/auth'
+    }
+  }
+
   if (to.meta.requiresRole) {
     if (!authStore.token) {
-      return '/login'
+      return '/auth'
     }
     if (authStore.user?.role !== to.meta.requiresRole) {
       return '/'

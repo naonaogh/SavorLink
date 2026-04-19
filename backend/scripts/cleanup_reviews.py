@@ -1,6 +1,6 @@
 import asyncio
 from sqlalchemy import select, func, delete
-from backend.database.database import get_session
+from backend.database.session import get_session
 from backend.database.models import EnterpriseReview
 
 async def cleanup():

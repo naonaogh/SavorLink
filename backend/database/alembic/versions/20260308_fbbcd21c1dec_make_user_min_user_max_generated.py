@@ -7,6 +7,7 @@ Create Date: 2026-03-08 13:36:49.308140
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect
 
 
 # revision identifiers
@@ -17,6 +18,16 @@ depends_on = None
 
 
 def upgrade():
+    inspector = inspect(op.get_bind())
+    if "chats" in inspector.get_table_names():
+        chat_columns = {column["name"]: column for column in inspector.get_columns("chats")}
+        if (
+            chat_columns.get("user_min", {}).get("computed") is not None
+            and chat_columns.get("user_max", {}).get("computed") is not None
+            and any(index["name"] == "uq_chats_users" for index in inspector.get_indexes("chats"))
+        ):
+            return
+
     op.drop_column("chats", "user_min")
     op.drop_column("chats", "user_max")
 

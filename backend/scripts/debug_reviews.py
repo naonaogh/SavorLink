@@ -1,9 +1,9 @@
 import asyncio
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
-from backend.database.database import get_session
+from backend.database.session import get_session
 from backend.database.models import EnterpriseReview
-from backend.database.schemas.review import EnterpriseReviewRead
+from backend.modules.review.schemas import EnterpriseReviewRead
 from pydantic import TypeAdapter
 from typing import List
 

@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useShopStore } from '@/data/shopStore'
-import { useAuthStore } from '@/data/authStore'
-import CommonNavbar from '@/components/CommonNavbar.vue'
-import api from '@/api'
+import { useShopStore } from '@/stores/shopStore'
+import { useAuthStore } from '@/stores/authStore'
+import api from '@/services/apiClient'
+import { AddIcon, CloseIcon, DeleteIcon, DocumentIcon } from '@/assets/icons/png'
 
 const router = useRouter()
 const shopStore = useShopStore()
@@ -112,13 +112,12 @@ const handleDelete = async (id: number) => {
 
 <template>
   <div class="my-products-page">
-    <CommonNavbar />
-
     <main class="main-content">
       <div class="content-header">
         <h1 class="title">Управление товарами</h1>
         <button @click="openCreateModal" class="btn-add">
-          <span class="plus">+</span> Добавить товар
+          <img :src="AddIcon" alt="" class="btn-icon" aria-hidden="true" />
+          Добавить товар
         </button>
       </div>
 
@@ -129,7 +128,9 @@ const handleDelete = async (id: number) => {
         {{ error }}
       </div>
       <div v-else-if="products.length === 0" class="empty-state">
-        <div class="empty-icon">📦</div>
+        <div class="empty-icon">
+          <img :src="DocumentIcon" alt="" class="empty-icon-img" aria-hidden="true" />
+        </div>
         <p>У вас пока нет товаров. Самое время создать первый!</p>
         <button @click="openCreateModal" class="btn-add-large">Создать товар</button>
       </div>
@@ -137,7 +138,7 @@ const handleDelete = async (id: number) => {
       <div v-else class="products-grid">
         <div v-for="product in products" :key="product.id" class="product-card">
           <div class="card-image">
-            <span class="card-icon">🌿</span>
+            <img :src="DocumentIcon" alt="" class="card-icon" aria-hidden="true" />
             <span class="card-cat" v-if="product.category">{{ product.category.name }}</span>
           </div>
           <div class="card-info">
@@ -161,7 +162,9 @@ const handleDelete = async (id: number) => {
     <Transition name="modal">
       <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
         <div class="modal-content">
-          <button class="modal-close" @click="showModal = false">×</button>
+          <button class="modal-close" @click="showModal = false">
+            <img :src="CloseIcon" alt="" class="close-icon" aria-hidden="true" />
+          </button>
           <h2 class="modal-title">{{ isEditing ? 'Редактировать товар' : 'Новый товар' }}</h2>
           <form @submit.prevent="handleSave" class="product-form">
             <div class="form-group">
@@ -218,367 +221,345 @@ const handleDelete = async (id: number) => {
 <style scoped>
 .my-products-page {
   min-height: 100vh;
-  background: #ebe2ce;
-  color: #2e2a23;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: 'Manrope', sans-serif;
+  background: transparent;
+  color: #20311c;
 }
 
+/* MAIN */
 .main-content {
   max-width: 1100px;
   margin: 0 auto;
-  padding: 2.5rem 1.5rem;
+  padding: 3rem 1.5rem 6rem;
 }
 
+/* HEADER (GLASS STYLE как в системе) */
 .content-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
-  flex-wrap: wrap;
-  gap: 1rem;
+
+  padding: 2rem;
+  margin-bottom: 3rem;
+
+  border-radius: 1.7rem;
+  background: rgba(255,255,255,0.78);
+  border: 1px solid rgba(76,124,42,0.16);
+  backdrop-filter: blur(18px);
+
+  box-shadow: 0 24px 60px rgba(54,87,21,0.12);
 }
 
 .title {
-  font-size: 1.75rem;
+  font-size: 1.7rem;
   font-weight: 800;
-  color: #3f4a2f;
+  color: #20311c;
   margin: 0;
 }
 
+/* ADD BUTTON (единый стиль) */
 .btn-add {
-  background: #3f4a2f;
-  color: #fff;
+  border-radius: 999px;
+  padding: 0.8rem 1.4rem;
+
+  background: linear-gradient(135deg, #6da13d, #4c7c2a);
+  color: white;
   border: none;
-  padding: 0.75rem 1.5rem;
-  border-radius: 12px;
-  font-weight: 600;
+
+  font-weight: 700;
   cursor: pointer;
+
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  transition: transform 0.2s, background 0.2s;
-  box-shadow: 0 4px 12px rgba(63, 74, 47, 0.2);
+
+  box-shadow: 0 10px 25px rgba(76,124,42,0.2);
+  transition: 0.2s ease;
+}
+
+.btn-icon,
+.empty-icon-img,
+.card-icon,
+.close-icon {
+  display: block;
+  object-fit: contain;
+}
+
+.btn-icon,
+.close-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.empty-icon-img {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto;
+}
+
+.card-icon {
+  width: 40px;
+  height: 40px;
 }
 
 .btn-add:hover {
-  background: #4a5638;
   transform: translateY(-2px);
 }
 
-.plus {
-  font-size: 1.2rem;
-  line-height: 1;
-}
-
+/* GRID */
 .products-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 1.5rem;
 }
 
+/* PRODUCT CARD (GLASS SYSTEM) */
 .product-card {
-  background: #f4ead4;
-  border: 1px solid #ddc8a3;
-  border-radius: 16px;
-  overflow: hidden;
+  background: rgba(255,255,255,0.78);
+  border: 1px solid rgba(76,124,42,0.16);
+  border-radius: 1.7rem;
+
+  backdrop-filter: blur(18px);
+  box-shadow: 0 24px 60px rgba(54,87,21,0.08);
+
   display: flex;
   flex-direction: column;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-  transition: box-shadow 0.2s, transform 0.2s;
+
+  transition: 0.25s ease;
 }
 
 .product-card:hover {
-  box-shadow: 0 8px 25px rgba(0,0,0,0.1);
-  transform: translateY(-2px);
+  transform: translateY(-3px);
+  box-shadow: 0 30px 70px rgba(54,87,21,0.15);
 }
 
+/* IMAGE */
 .card-image {
   height: 130px;
+  border-radius: 1.7rem 1.7rem 0 0;
+
   background: linear-gradient(135deg, #d4edda, #a8d5b5);
+
   display: flex;
   align-items: center;
   justify-content: center;
+
   position: relative;
 }
 
 .card-icon {
-  font-size: 3rem;
+  font-size: 2.8rem;
 }
 
+/* CATEGORY BADGE */
 .card-cat {
   position: absolute;
-  bottom: 0.5rem;
-  right: 0.5rem;
-  background: rgba(63, 74, 47, 0.85);
-  color: #fff;
-  font-size: 0.72rem;
-  padding: 0.2rem 0.5rem;
-  border-radius: 4px;
+  bottom: 10px;
+  right: 10px;
+
+  font-size: 0.7rem;
+  font-weight: 700;
+
+  padding: 0.25rem 0.6rem;
+
+  border-radius: 999px;
+
+  background: rgba(255,255,255,0.85);
+  border: 1px solid rgba(76,124,42,0.16);
+  color: #3f4a2f;
 }
 
+/* INFO */
 .card-info {
   padding: 1.25rem;
-  flex: 1;
 }
 
 .product-name {
-  font-size: 1.1rem;
-  font-weight: 700;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #20311c;
   margin: 0 0 0.4rem;
-  color: #1f2937;
 }
 
 .product-desc {
-  font-size: 0.88rem;
-  line-height: 1.5;
-  color: #4b5563;
+  font-size: 0.85rem;
+  color: #5d6b52;
   margin-bottom: 0.75rem;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  line-height: 1.4;
 }
 
+/* META */
 .product-meta {
   display: flex;
   justify-content: space-between;
-  font-weight: 600;
   margin-bottom: 0.3rem;
 }
 
 .price {
-  color: #3f4a2f;
-  font-size: 1.05rem;
+  font-weight: 900;
+  color: #4c7c2a;
 }
 
 .stock {
-  color: #a97c50;
-  font-size: 0.88rem;
+  font-size: 0.85rem;
+  color: #5d6b52;
 }
 
 .min-order {
   font-size: 0.8rem;
   color: #6b7280;
-  margin: 0;
 }
 
+/* ACTIONS */
 .card-actions {
   display: flex;
   gap: 0.6rem;
   padding: 0 1.25rem 1.25rem;
 }
 
+/* EDIT BUTTON */
 .btn-edit {
   flex: 1;
-  background: #fff;
-  border: 1px solid #3f4a2f;
+
+  border-radius: 999px;
+  padding: 0.65rem;
+
+  background: rgba(255,255,255,0.85);
+  border: 1px solid rgba(76,124,42,0.16);
+
   color: #3f4a2f;
-  padding: 0.6rem;
-  border-radius: 8px;
+  font-weight: 700;
+
   cursor: pointer;
-  font-weight: 600;
-  font-size: 0.88rem;
-  transition: background 0.15s;
 }
 
-.btn-edit:hover {
-  background: #f0f4ec;
-}
-
+/* DELETE */
 .btn-delete {
-  padding: 0.6rem 1rem;
-  background: #fee2e2;
-  color: #dc2626;
-  border: 1px solid #fecaca;
-  border-radius: 8px;
+  border-radius: 999px;
+  padding: 0.65rem 1rem;
+
+  background: rgba(254,226,226,0.8);
+  color: #991b1b;
+  border: none;
+
+  font-weight: 700;
   cursor: pointer;
-  font-weight: 600;
-  font-size: 0.88rem;
-  transition: background 0.15s;
 }
 
-.btn-delete:hover {
-  background: #fecaca;
+/* EMPTY STATE */
+.empty-state {
+  background: rgba(255,255,255,0.78);
+  border: 1px solid rgba(76,124,42,0.16);
+
+  backdrop-filter: blur(18px);
+
+  border-radius: 1.7rem;
+  padding: 4rem 2rem;
+
+  text-align: center;
 }
 
-/* Modal */
+.empty-icon {
+  font-size: 3.5rem;
+}
+
+/* LOADING / ERROR */
+.status-msg {
+  text-align: center;
+  padding: 3rem;
+  color: #5d6b52;
+}
+
+.status-msg.error {
+  color: #991b1b;
+}
+
+/* BUTTON LARGE */
+.btn-add-large {
+  margin-top: 1.5rem;
+
+  border-radius: 999px;
+  padding: 1rem 2rem;
+
+  background: linear-gradient(135deg, #6da13d, #4c7c2a);
+  color: white;
+
+  border: none;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+/* MODAL */
 .modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(45, 38, 31, 0.7);
-  backdrop-filter: blur(4px);
+  inset: 0;
+
+  background: rgba(0,0,0,0.4);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
-  padding: 1rem;
 }
 
 .modal-content {
-  background: #fdfaf3;
-  width: 100%;
-  max-width: 520px;
-  border-radius: 24px;
+  width: 520px;
+
+  border-radius: 1.7rem;
+
+  background: rgba(255,255,255,0.85);
+  backdrop-filter: blur(18px);
+
+  border: 1px solid rgba(76,124,42,0.16);
+
   padding: 2rem;
-  box-shadow: 0 20px 50px rgba(0,0,0,0.25);
-  position: relative;
-  max-height: 90vh;
-  overflow-y: auto;
 }
 
-.modal-close {
-  position: absolute;
-  top: 1rem;
-  right: 1.25rem;
-  border: none;
-  background: none;
-  font-size: 1.75rem;
-  cursor: pointer;
-  color: #9ca3af;
-  line-height: 1;
-}
-
-.modal-title {
-  font-size: 1.5rem;
-  font-weight: 800;
-  margin: 0 0 1.5rem;
-  color: #3f4a2f;
-}
-
-.product-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1.1rem;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-}
-
+/* FORM */
 label {
-  font-size: 0.83rem;
+  font-size: 0.8rem;
   font-weight: 700;
-  color: #6d6254;
+  color: #5d6b52;
 }
 
 input, select, textarea {
-  padding: 0.75rem 1rem;
-  border: 1px solid #dcd1ba;
-  border-radius: 10px;
-  background: #fff;
+  border-radius: 0.7rem;
+  border: 1px solid rgba(76,124,42,0.2);
+  padding: 0.7rem;
   font-family: inherit;
-  font-size: 0.95rem;
-  color: #1f2937;
 }
 
 input:focus, select:focus, textarea:focus {
   outline: none;
-  border-color: #3f4a2f;
-  box-shadow: 0 0 0 3px rgba(63, 74, 47, 0.1);
+  border-color: #4c7c2a;
+  box-shadow: 0 0 0 3px rgba(76,124,42,0.1);
 }
 
-textarea {
-  resize: vertical;
-  min-height: 90px;
-}
+/* BUTTONS */
+.btn-submit {
+  border-radius: 999px;
+  padding: 0.75rem 1.5rem;
 
-.form-error {
-  background: #fee2e2;
-  color: #dc2626;
-  padding: 0.65rem 1rem;
-  border-radius: 8px;
-  font-size: 0.88rem;
-}
+  background: linear-gradient(135deg, #6da13d, #4c7c2a);
+  color: white;
 
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 1rem;
-  margin-top: 0.5rem;
+  border: none;
+  font-weight: 800;
 }
 
 .btn-cancel {
-  background: transparent;
+  background: none;
   border: none;
-  color: #6d6254;
-  font-weight: 600;
-  cursor: pointer;
-  font-size: 0.95rem;
+  color: #5d6b52;
 }
 
-.btn-submit {
-  background: #3f4a2f;
-  color: #fff;
-  border: none;
-  padding: 0.75rem 1.75rem;
-  border-radius: 10px;
-  font-weight: 700;
-  cursor: pointer;
-  font-size: 0.95rem;
-  transition: background 0.2s;
+/* ANIMATION */
+.modal-enter-active,
+.modal-leave-active {
+  transition: 0.2s ease;
 }
 
-.btn-submit:hover:not(:disabled) {
-  background: #4a5638;
-}
-
-.btn-submit:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
-/* Animations */
-.modal-enter-active, .modal-leave-active {
-  transition: opacity 0.25s;
-}
-.modal-enter-from, .modal-leave-to {
+.modal-enter-from,
+.modal-leave-to {
   opacity: 0;
-}
-
-.status-msg {
-  text-align: center;
-  padding: 3rem;
-  font-size: 1.1rem;
-  color: #4b5563;
-}
-
-.status-msg.error {
-  color: #dc2626;
-}
-
-.empty-state {
-  text-align: center;
-  padding: 4rem 2rem;
-  background: rgba(255,255,255,0.4);
-  border-radius: 24px;
-  border: 2px dashed #dcd1ba;
-}
-
-.empty-icon {
-  font-size: 4rem;
-  margin-bottom: 1rem;
-}
-
-.btn-add-large {
-  margin-top: 1.5rem;
-  background: #3f4a2f;
-  color: #fff;
-  border: none;
-  padding: 1rem 2rem;
-  border-radius: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  font-size: 1rem;
+  transform: translateY(10px);
 }
 </style>

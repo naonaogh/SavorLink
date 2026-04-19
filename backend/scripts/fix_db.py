@@ -1,5 +1,5 @@
 import asyncio
-from backend.database.database import engine
+from backend.database.session import engine
 from backend.database.models import Base
 from sqlalchemy import text
 

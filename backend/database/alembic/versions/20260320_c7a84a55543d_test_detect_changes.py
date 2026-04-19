@@ -10,6 +10,7 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+from sqlalchemy import inspect
 
 # revision identifiers, used by Alembic.
 revision: str = 'c7a84a55543d'
@@ -20,6 +21,12 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
+    inspector = inspect(op.get_bind())
+    if "users" in inspector.get_table_names():
+        user_columns = {column["name"]: column for column in inspector.get_columns("users")}
+        if "enterprise_id" not in user_columns:
+            return
+
     op.execute("DROP TYPE IF EXISTS documenttype;") 
     op.execute("DROP TYPE IF EXISTS orderstatus;") 
     op.execute("DROP TYPE IF EXISTS paymentstatus;") 

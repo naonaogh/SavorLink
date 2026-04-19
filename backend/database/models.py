@@ -12,7 +12,8 @@ from sqlalchemy import (
     Index,
     Computed,
     Table,
-    func
+    func,
+    text,
 )
 from sqlalchemy.orm import relationship, DeclarativeBase
 from sqlalchemy import Enum as PGEnum
@@ -77,6 +78,7 @@ class Enterprise(Base):
     short_name = Column(Text, nullable=False, unique=True)
     inn = Column(Text, nullable=False)
     region = Column(Text, nullable=False)
+    city = Column(Text)
     phone = Column(Text)
     email = Column(Text)
     logo_url = Column(Text, nullable=True)
@@ -108,6 +110,7 @@ class Enterprise(Base):
     )
 
     product_reviews = relationship("ProductReview", back_populates="author_enterprise", lazy="selectin")
+    favorited_by = relationship("EnterpriseFavorite", back_populates="enterprise", lazy="selectin")
 
 
 class User(Base):
@@ -116,6 +119,7 @@ class User(Base):
     id = Column(BigInteger, primary_key=True)
     email = Column(Text, unique=True, nullable=False)
     password_hash = Column(Text, nullable=False)
+    token_version = Column(Integer, nullable=False, server_default=text("0"), default=0)
 
     role = Column(
         PGEnum(UserRole, name="user_role", create_type=False),
@@ -138,6 +142,7 @@ class User(Base):
     messages_sent = relationship("Message", back_populates="sender", lazy="selectin")
     order_history = relationship("OrderHistory", back_populates="changed_by_user", lazy="selectin")
     favorites = relationship("Favorite", back_populates="user", lazy="selectin")
+    enterprise_favorites = relationship("EnterpriseFavorite", back_populates="user", lazy="selectin")
 
     chats_as_user1 = relationship("Chat", foreign_keys="Chat.user1_id", back_populates="user1", lazy="selectin")
     chats_as_user2 = relationship("Chat", foreign_keys="Chat.user2_id", back_populates="user2", lazy="selectin")
@@ -284,6 +289,23 @@ class Favorite(Base):
 
     user = relationship("User", back_populates="favorites")
     product = relationship("Product", back_populates="favorites")
+
+
+class EnterpriseFavorite(Base):
+    __tablename__ = "enterprise_favorites"
+
+    id = Column(BigInteger, primary_key=True)
+    user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    enterprise_id = Column(BigInteger, ForeignKey("enterprises.id", ondelete="CASCADE"), nullable=False)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("uq_enterprise_favorite", "user_id", "enterprise_id", unique=True),
+    )
+
+    user = relationship("User", back_populates="enterprise_favorites")
+    enterprise = relationship("Enterprise", back_populates="favorited_by")
 
 
 class Payment(Base):

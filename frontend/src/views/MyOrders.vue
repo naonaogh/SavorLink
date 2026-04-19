@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { useShopStore } from '@/data/shopStore'
-import { useAuthStore } from '@/data/authStore'
-import CommonNavbar from '@/components/CommonNavbar.vue'
+import { useShopStore } from '@/stores/shopStore'
+import { useAuthStore } from '@/stores/authStore'
+import { CalendarIcon, CloseIcon, DeleteIcon, DoneIcon, DocumentIcon, TruckIcon } from '@/assets/icons/png'
 
 import NotificationBell from '@/components/NotificationBell.vue'
 
@@ -24,7 +24,7 @@ const errorMsg = ref<string | null>(null)
 
 onMounted(async () => {
   if (!authStore.token) {
-    router.push('/login')
+    router.push('/auth')
     return
   }
   if (authStore.user?.role !== 'BUYER') {
@@ -84,15 +84,31 @@ const handleDeleteTemplate = () => {
 }
 
 const statusLabel: Record<string, { text: string; icon: string; class: string }> = {
-  CREATED: { text: 'На рассмотрении', icon: '⏳', class: 'status-created' },
-  CONFIRMED: { text: 'Принят в работу', icon: '✅', class: 'status-confirmed' },
-  IN_PROGRESS: { text: 'В пути', icon: '🚚', class: 'status-inprogress' },
-  COMPLETED: { text: 'Доставлен', icon: '📦', class: 'status-completed' },
-  CANCELLED: { text: 'Отклонён поставщиком', icon: '❌', class: 'status-cancelled' },
+  CREATED: { text: 'На рассмотрении', icon: 'calendar', class: 'status-created' },
+  CONFIRMED: { text: 'Принят в работу', icon: 'done', class: 'status-confirmed' },
+  IN_PROGRESS: { text: 'В пути', icon: 'truck', class: 'status-inprogress' },
+  COMPLETED: { text: 'Доставлен', icon: 'done', class: 'status-completed' },
+  CANCELLED: { text: 'Отклонён поставщиком', icon: 'close', class: 'status-cancelled' },
 }
 
 const getStatusInfo = (status: string) =>
-  statusLabel[status] || { text: status, icon: '📄', class: 'status-created' }
+  statusLabel[status] || { text: status, icon: 'document', class: 'status-created' }
+
+const statusIcon = (icon: string) => {
+  switch (icon) {
+    case 'calendar':
+      return CalendarIcon
+    case 'done':
+      return DoneIcon
+    case 'close':
+      return CloseIcon
+    case 'truck':
+      return TruckIcon
+    case 'document':
+    default:
+      return DocumentIcon
+  }
+}
 
 const formatDate = (dt: string) => {
   const d = new Date(dt)
@@ -132,8 +148,6 @@ const markDelivered = async (orderId: number) => {
 
 <template>
   <div class="page">
-    <CommonNavbar />
-
     <main class="page-main">
       <div class="page-header">
         <div class="title-wrapper">
@@ -146,7 +160,8 @@ const markDelivered = async (orderId: number) => {
             class="btn-use-template" 
             @click="showTemplateModal = true"
           >
-            📝 Использовать шаблон
+            <img :src="DocumentIcon" alt="" class="btn-icon" aria-hidden="true" />
+            Использовать шаблон
           </button>
           <p class="page-count" v-if="!isLoading">Всего заказов: {{ orders.length }}</p>
         </div>
@@ -155,11 +170,11 @@ const markDelivered = async (orderId: number) => {
       <!-- Toast -->
       <TransitionGroup name="toast">
         <div v-if="successMsg" key="success" class="toast toast-success">
-          <span class="t-icon">✨</span>
+          <img :src="DoneIcon" alt="" class="t-icon" aria-hidden="true" />
           {{ successMsg }}
         </div>
         <div v-if="errorMsg" key="error" class="toast toast-error">
-          <span class="t-icon">⚠️</span>
+          <img :src="CloseIcon" alt="" class="t-icon" aria-hidden="true" />
           {{ errorMsg }}
         </div>
       </TransitionGroup>
@@ -170,7 +185,9 @@ const markDelivered = async (orderId: number) => {
       </div>
 
       <div v-else-if="orders.length === 0" class="empty-state">
-        <div class="empty-illustration">📭</div>
+        <div class="empty-illustration">
+          <img :src="DocumentIcon" alt="" class="empty-icon" aria-hidden="true" />
+        </div>
         <h2>У вас пока нет заказов</h2>
         <p>Время наполнить корзину свежими продуктами!</p>
         <router-link to="/catalog" class="btn-catalog">В каталог</router-link>
@@ -192,7 +209,7 @@ const markDelivered = async (orderId: number) => {
               <span class="order-date">{{ formatDate(order.created_at) }}</span>
             </div>
             <div class="status-badge" :class="getStatusInfo(order.status).class">
-              <span class="badge-icon">{{ getStatusInfo(order.status).icon }}</span>
+              <img :src="statusIcon(getStatusInfo(order.status).icon)" alt="" class="badge-icon" aria-hidden="true" />
               {{ getStatusInfo(order.status).text }}
             </div>
           </div>
@@ -200,7 +217,7 @@ const markDelivered = async (orderId: number) => {
           <div class="card-body">
             <div class="supplier-info">
               <span class="info-label">Поставщик</span>
-              <span class="info-value">🏭 {{ order.seller_enterprise?.short_name }}</span>
+              <span class="info-value">{{ order.seller_enterprise?.short_name }}</span>
             </div>
 
             <!-- Items list -->
@@ -229,7 +246,7 @@ const markDelivered = async (orderId: number) => {
                 :disabled="updatingOrderId === order.id"
               >
                 <span v-if="updatingOrderId === order.id" class="loading-sm"></span>
-                {{ updatingOrderId === order.id ? 'Обновляем...' : '📬 Заказ получен' }}
+                {{ updatingOrderId === order.id ? 'Обновляем...' : 'Заказ получен' }}
               </button>
               <p class="footer-hint" v-if="order.status === 'CONFIRMED'">
                 Нажмите, когда товар будет у вас
@@ -237,13 +254,13 @@ const markDelivered = async (orderId: number) => {
             </template>
             
             <div v-else-if="order.status === 'COMPLETED'" class="note-success">
-              ✅ Сделка успешно завершена
+              Сделка успешно завершена
             </div>
             <div v-else-if="order.status === 'CANCELLED'" class="note-error">
-              ❌ Заказ был отменён
+              Заказ был отменён
             </div>
             <div v-else class="note-pending">
-              ⏳ Ожидайте подтверждения от поставщика
+              Ожидайте подтверждения от поставщика
             </div>
           </div>
         </div>
@@ -254,19 +271,23 @@ const markDelivered = async (orderId: number) => {
     <Transition name="modal">
       <div v-if="showTemplateModal" class="modal-overlay" @click.self="showTemplateModal = false">
         <div class="modal-template">
-          <button class="btn-close-modal" @click="showTemplateModal = false">✕</button>
+          <button class="btn-close-modal" @click="showTemplateModal = false">
+            <img :src="CloseIcon" alt="" class="btn-icon" aria-hidden="true" />
+          </button>
           <h2 class="modal-title">Ваш шаблон заказа</h2>
           
           <div class="template-items-list">
             <div v-for="item in templateItems" :key="item.product_id" class="template-item-card">
-              <div class="t-item-icon">🌿</div>
+              <div class="t-item-icon">
+                <img :src="DocumentIcon" alt="" class="item-icon-img" aria-hidden="true" />
+              </div>
               <div class="t-item-main">
                 <div class="t-item-top">
                   <span class="t-item-name">{{ item.product?.name }}</span>
                   <span class="t-item-category" v-if="item.product?.category">{{ item.product.category.name }}</span>
                 </div>
                 <div class="t-item-details">
-                  <span class="t-item-supplier" v-if="item.product?.enterprise">🏢 {{ item.product.enterprise.short_name }}</span>
+                  <span class="t-item-supplier" v-if="item.product?.enterprise">{{ item.product.enterprise.short_name }}</span>
                   <span class="t-item-qty">{{ item.quantity }} кг × {{ item.product?.price }} ₽</span>
                 </div>
               </div>
@@ -288,7 +309,8 @@ const markDelivered = async (orderId: number) => {
                 {{ isCheckingOut ? 'Оформление...' : 'Оформить по шаблону' }}
               </button>
               <button class="btn-delete-template" @click="handleDeleteTemplate">
-                🗑️ Удалить шаблон
+                <img :src="DeleteIcon" alt="" class="btn-icon" aria-hidden="true" />
+                Удалить шаблон
               </button>
             </div>
             <p class="template-hint">* Цены соответствуют текущим в каталоге</p>
@@ -361,6 +383,42 @@ const markDelivered = async (orderId: number) => {
   gap: 0.75rem;
   font-weight: 600;
   border: 1px solid rgba(0,0,0,0.05);
+}
+
+.t-icon,
+.btn-icon,
+.badge-icon,
+.empty-icon,
+.item-icon-img {
+  display: block;
+  object-fit: contain;
+}
+
+.t-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.btn-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.badge-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.empty-icon {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto;
+}
+
+.item-icon-img {
+  width: 30px;
+  height: 30px;
 }
 
 .toast-success { color: #059669; border-left: 5px solid #10b981; }
@@ -609,6 +667,12 @@ const markDelivered = async (orderId: number) => {
   box-shadow: 0 4px 10px rgba(0,0,0,0.05);
 }
 
+.btn-use-template .btn-icon,
+.btn-delete-template .btn-icon {
+  width: 18px;
+  height: 18px;
+}
+
 .btn-use-template:hover {
   background: #fdfdfd;
   transform: translateY(-1px);
@@ -658,6 +722,11 @@ const markDelivered = async (orderId: number) => {
   align-items: center;
   justify-content: center;
   transition: all 0.2s;
+}
+
+.btn-close-modal .btn-icon {
+  width: 18px;
+  height: 18px;
 }
 
 .btn-close-modal:hover {
@@ -841,5 +910,274 @@ const markDelivered = async (orderId: number) => {
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
   display: inline-block;
+}
+</style>
+
+<style scoped>
+.page {
+  min-height: 100vh;
+  font-family: 'Manrope', sans-serif;
+  background: transparent;
+  color: #20311c;
+}
+
+/* MAIN LAYOUT */
+.page-main {
+  max-width: 850px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem 6rem;
+}
+
+/* HEADER */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2.5rem;
+}
+
+.page-title {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: #20311c;
+}
+
+.title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.header-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.page-count {
+  font-size: 0.85rem;
+  color: #5d6b52;
+}
+
+/* BUTTON (template) */
+.btn-use-template {
+  border-radius: 999px;
+  padding: 0.65rem 1.2rem;
+  background: linear-gradient(135deg, #6da13d, #4c7c2a);
+  color: white;
+  border: none;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 10px 25px rgba(76,124,42,0.25);
+  transition: 0.2s ease;
+}
+
+.btn-use-template:hover {
+  transform: translateY(-2px);
+}
+
+/* TOAST */
+.toast {
+  position: fixed;
+  top: 90px;
+  right: 2rem;
+  background: rgba(255,255,255,0.85);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(76,124,42,0.15);
+  padding: 1rem 1.5rem;
+  border-radius: 1.2rem;
+  box-shadow: 0 20px 50px rgba(54,87,21,0.12);
+  display: flex;
+  gap: 0.6rem;
+  font-weight: 600;
+}
+
+.toast-success { color: #4c7c2a; }
+.toast-error { color: #991b1b; }
+
+/* ORDERS GRID */
+.orders-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+}
+
+/* ORDER CARD (GLASS STYLE) */
+.order-card {
+  background: rgba(255,255,255,0.78);
+  border: 1px solid rgba(76,124,42,0.12);
+  backdrop-filter: blur(18px);
+  border-radius: 1.7rem;
+  padding: 1.5rem;
+  transition: 0.25s ease;
+  box-shadow: 0 18px 50px rgba(54,87,21,0.08);
+}
+
+.order-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 24px 60px rgba(54,87,21,0.12);
+}
+
+.order-card--cancelled {
+  opacity: 0.8;
+}
+
+.order-card--completed {
+  border-color: rgba(76,124,42,0.25);
+}
+
+/* HEADER INSIDE CARD */
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1.2rem;
+}
+
+.order-number {
+  font-weight: 800;
+}
+
+.order-date {
+  font-size: 0.8rem;
+  color: #5d6b52;
+}
+
+/* STATUS */
+.status-badge {
+  border-radius: 999px;
+  padding: 0.35rem 0.8rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  background: rgba(255,255,255,0.7);
+  border: 1px solid rgba(76,124,42,0.15);
+}
+
+.status-created { color: #92400e; }
+.status-confirmed { color: #4c7c2a; }
+.status-inprogress { color: #1e40af; }
+.status-completed { color: #065f46; }
+.status-cancelled { color: #991b1b; }
+
+/* CONTENT */
+.card-body {
+  border-top: 1px solid rgba(76,124,42,0.12);
+  padding-top: 1rem;
+}
+
+.order-content {
+  background: rgba(249,250,251,0.6);
+  border-radius: 1rem;
+  padding: 1rem;
+}
+
+/* ITEMS */
+.item-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.item-name {
+  font-weight: 600;
+  color: #2f3b2a;
+}
+
+.item-price {
+  font-weight: 800;
+  color: #3f4a2f;
+}
+
+/* TOTAL */
+.total-value {
+  font-size: 1.2rem;
+  font-weight: 900;
+  color: #4c7c2a;
+}
+
+/* FOOTER */
+.card-footer {
+  margin-top: 1.2rem;
+  text-align: right;
+}
+
+/* BUTTON */
+.btn-delivered {
+  border-radius: 999px;
+  padding: 0.7rem 1.4rem;
+  background: linear-gradient(135deg, #6da13d, #4c7c2a);
+  color: white;
+  border: none;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 10px 25px rgba(76,124,42,0.25);
+}
+
+/* EMPTY STATE */
+.empty-state {
+  background: rgba(255,255,255,0.78);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(76,124,42,0.12);
+  border-radius: 1.7rem;
+  padding: 4rem 2rem;
+  text-align: center;
+}
+
+/* LOADING */
+.loading-spinner {
+  border: 3px solid rgba(76,124,42,0.2);
+  border-top-color: #4c7c2a;
+  border-radius: 50%;
+}
+
+/* MODAL */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-template {
+  width: 600px;
+  border-radius: 1.7rem;
+  background: rgba(255,255,255,0.85);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(76,124,42,0.15);
+  padding: 2.5rem;
+}
+
+/* TEMPLATE BUTTONS */
+.btn-checkout-template {
+  border-radius: 999px;
+  background: linear-gradient(135deg, #6da13d, #4c7c2a);
+  color: white;
+  border: none;
+  font-weight: 800;
+}
+
+.btn-delete-template {
+  border-radius: 999px;
+  background: #fee2e2;
+  color: #991b1b;
+  border: none;
+}
+
+/* ANIMATION */
+.toast-enter-active,
+.toast-leave-active {
+  transition: 0.2s ease;
+}
+
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
 }
 </style>

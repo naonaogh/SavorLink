@@ -1,7 +1,7 @@
 import asyncio
 import random
 from sqlalchemy import select
-from backend.database.database import get_session
+from backend.database.session import get_session
 from backend.database.models import User, UserRole, Enterprise, EnterpriseReview
 
 REVIEWS_POOL = [

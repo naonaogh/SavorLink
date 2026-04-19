@@ -1,737 +1,362 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/data/authStore'
 import BasketIcon from '@/assets/icons/basket.svg'
 import TruckIcon from '@/assets/icons/grusovik.svg'
 import DocsIcon from '@/assets/icons/docs.svg'
 import QuestionIcon from '@/assets/icons/questionn.svg'
+import HeroImage from '@/assets/images/home-hero.jpg'
+import { useAuthStore } from '@/stores/authStore'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
-const handleLogout = () => {
-  authStore.logout()
-  router.push('/')
-}
-
 const steps = [
-  { title: 'Заказываете нужные товары в каталоге', icon: 'cart' },
-  { title: 'Поставщик подтверждает и привозит', icon: 'truck' },
-  { title: 'Система генерирует все документы', icon: 'doc' },
-]
-const features = [
-  {
-    bold: 'Работа по официальным документам',
-    regular: ' (счёт-фактура, договор, акт)',
-  },
-  {
-    bold: 'Поддержка полного цикла',
-    regular: ' — от заказа до оплаты и отчёта',
-  },
-  {
-    bold: 'Проверенные партнёры и защита обеих сторон сделки.',
-    regular: '',
-  },
+  { title: 'Выбираете поставщика и товары в каталоге', icon: BasketIcon },
+  { title: 'Оформляете заказ и отслеживаете статусы', icon: TruckIcon },
+  { title: 'Получаете документы и аналитику в одном месте', icon: DocsIcon },
 ]
 
-const goRegisterBuyer = () => {
-  router.push({ name: 'Register', query: { role: 'buyer' } })
-}
+const advantages = [
+  'Работа без посредников и скрытых наценок',
+  'Карточки поставщиков и товаров в едином стиле',
+  'Чат, документы и уведомления доступны из одного интерфейса',
+]
 
-const goRegisterSupplier = () => {
-  router.push({ name: 'Register', query: { role: 'supplier' } })
-}
-
-const goLogin = () => {
-  router.push({ name: 'Login' })
-}
+const goRegisterBuyer = () => router.push({ path: '/auth', query: { mode: 'register', role: 'buyer' } })
+const goRegisterSupplier = () => router.push({ path: '/auth', query: { mode: 'register', role: 'supplier' } })
+const goCatalog = () => router.push('/catalog')
 </script>
+
 <template>
-  <div class="home">
-    <!-- Шапка — скрин 1 -->
-    <header class="header">
-      <nav class="nav">
-        <a href="/" class="header-logo">SavorLink</a>
-        <div class="nav-links">
-          <router-link to="/" class="nav-link">Главная</router-link>
-          <router-link to="/catalog" class="nav-link">Каталог</router-link>
+  <main class="home-page">
+    <section class="hero">
+      <img :src="HeroImage" alt="" class="hero-bg" aria-hidden="true" />
+      <div class="hero-overlay"></div>
 
-          <!-- Гостям -->
-          <template v-if="!authStore.token">
-            <router-link to="/features" class="nav-link">Возможности</router-link>
-            <router-link to="/reviews" class="nav-link">Отзывы</router-link>
-            <span class="nav-sep" aria-hidden="true">|</span>
-            <router-link to="/register" class="nav-link">Регистрация</router-link>
-            <button type="button" class="btn-login" @click="goLogin">Вход</button>
-          </template>
+      <div class="hero-copy">
+        <p class="eyebrow">SavorLink</p>
+        <h1>Поставщики и рестораны находят друг друга быстрее</h1>
 
-          <!-- Авторизованным -->
-          <template v-else>
-            <router-link to="/profile" class="nav-link">Профиль</router-link>
-            <router-link v-if="authStore.user?.role === 'SUPPLIER'" to="/my-products" class="nav-link">Мои товары</router-link>
-            <router-link to="/favorites" class="nav-link">Избранное</router-link>
-            <router-link to="/cart" class="nav-link">Корзина</router-link>
-            <button type="button" class="btn-login" @click="handleLogout">Выйти</button>
-          </template>
+        <div class="hero-actions">
+          <button class="primary-btn" @click="goRegisterBuyer">Я покупатель</button>
+          <button class="secondary-btn" @click="goRegisterSupplier">Я поставщик</button>
         </div>
-      </nav>
-    </header>
-    <!-- Первый экран: hero слева + панель «О нас» справа -->
-    <section class="screen screen-1">
-      <div class="hero-col">
-        <span class="deco deco-triangle" aria-hidden="true" />
-        <span class="deco deco-rings" aria-hidden="true" />
-        <h1 class="hero-headline">
-          ПОСТАВЩИКИ И<br>РЕСТОРАНЫ НАХОДЯТ<br>ДРУГ ДРУГА ЗА<br>СЧИТАННЫЕ МИНУТЫ
-        </h1>
-        <p class="hero-sub">Без посредников и переплат</p>
-        <div class="hero-cta">
-          <button type="button" class="btn-buyer" @click="goRegisterBuyer">Покупатель</button>
-          <button type="button" class="btn-supplier" @click="goRegisterSupplier">
-            Поставщик
-          </button>
-        </div>
-      </div>
-      <!-- Панель справа — всегда видна, без крестика, фон чёрный полупрозрачный -->
-      <div class="about-panel">
-        <h2 class="about-panel-title">savorlink</h2>
-        <p class="about-panel-text">
-          SavorLink – экосистема, где рестораны каждый день получают самые свежие продукты по прямым ценам, а поставщики получают новых клиентов. Никаких посредников, звонков и ожидания — только проверенные поставщики и ваш привычный ритм кухни.
-        </p>
       </div>
     </section>
-    <!-- Второй экран: Как это работает -->
-    <section class="screen screen-2">
-      <span class="deco deco-triangle-tl" aria-hidden="true" />
-      <span class="deco deco-triangle-tr" aria-hidden="true" />
-      <span class="deco deco-circles-bl" aria-hidden="true" />
-      <h2 class="screen-title">Как это работает</h2>
-      <div class="steps-row">
-        <div v-for="(step, i) in steps" :key="step.icon" class="step-cell">
-          <div class="step-icon-wrap">
-            <span v-if="i > 0" class="connector-line connector-line--left" aria-hidden="true">
-              <span class="connector-line__dot" />
-            </span>
-            <div class="step-icon" :class="`step-icon--${step.icon}`">
-              <template v-if="step.icon === 'cart'">
-                <img :src="BasketIcon" alt="" class="step-svg" aria-hidden="true" />
-              </template>
-              <template v-else-if="step.icon === 'truck'">
-                <img :src="TruckIcon" alt="" class="step-svg" aria-hidden="true" />
-              </template>
-              <template v-else>
-                <img :src="DocsIcon" alt="" class="step-svg" aria-hidden="true" />
-              </template>
+
+    <section class="section">
+      <div class="steps-shell">
+        <div class="section-heading">
+          <h2>Как это работает</h2>
+          <p>Покупка и работа с поставщиками проходят в несколько простых шагов без лишних переходов и путаницы.</p>
+        </div>
+
+        <div class="steps-grid">
+          <article v-for="step in steps" :key="step.title" class="step-card">
+            <div class="step-icon-wrap">
+              <img :src="step.icon" alt="" aria-hidden="true" class="step-icon" />
             </div>
-            <span v-if="i < steps.length - 1" class="connector-line connector-line--right" aria-hidden="true">
-              <span class="connector-line__dot" />
-            </span>
-          </div>
-          <p class="step-text">{{ step.title }}</p>
+            <h3>{{ step.title }}</h3>
+          </article>
         </div>
       </div>
     </section>
-    <!-- Третий экран: Почему стоит выбрать нас -->
-    <section class="screen screen-3">
-      <span class="deco deco-triangles-tl" aria-hidden="true" />
-      <span class="deco deco-x-br" aria-hidden="true">×</span>
-      <h2 class="screen-title">Почему стоит выбрать нас</h2>
-      <div class="why-content">
-        <div class="why-left">
-          <p class="why-intro">
-            Пользователям будут доступны сравнение цен и условий от нескольких поставщиков в
-            реальном времени, верификацию качества через отзывы и сертификаты
-          </p>
-          <div class="why-icon-q">
-            <img :src="QuestionIcon" alt="" class="q-icon" aria-hidden="true" />
-          </div>
+
+    <section class="section section--split">
+      <div class="info-panel">
+        <img :src="QuestionIcon" alt="" aria-hidden="true" class="info-icon" />
+        <div>
+          <h2>Почему это удобно</h2>
+          <ul>
+            <li v-for="item in advantages" :key="item">{{ item }}</li>
+          </ul>
         </div>
-        <ul class="why-list">
-          <li v-for="(f, i) in features" :key="i" class="why-item">
-            <span class="why-item-mark" aria-hidden="true">✦</span>
-            <span class="why-item-text">
-              <strong>{{ f.bold }}</strong>{{ f.regular }}
-            </span>
-          </li>
-        </ul>
       </div>
     </section>
-    <!-- Подвал — без изменений -->
-    <footer class="footer">
-      <div class="footer-inner">
-        <div class="footer-col footer-col--logo">
-          <div class="logo">
-            <span class="logo-icon">OO</span>
-            <span class="logo-text">SavorLink</span>
-          </div>
-          <p class="footer-contact">+1 (7635) 547-12-97</p>
-          <p class="footer-contact">info@qr.agency</p>
-          <div class="footer-social">
-            <a href="#" class="footer-social-link" aria-label="LinkedIn">in</a>
-            <a href="#" class="footer-social-link" aria-label="Facebook">fb</a>
-            <a href="#" class="footer-social-link" aria-label="Twitter">tw</a>
-          </div>
-        </div>
-        <div class="footer-col">
-          <h4 class="footer-heading">Quick Links</h4>
-          <a href="#" class="footer-link">Product</a>
-          <a href="#" class="footer-link">Information</a>
-        </div>
-        <div class="footer-col">
-          <h4 class="footer-heading">Company</h4>
-          <a href="#" class="footer-link">SavorLink</a>
-          <a href="#" class="footer-link">QR Media</a>
-        </div>
-      </div>
-      <div class="footer-bottom">
-        <span>A product of</span>
-        <span>© 2020 QR Media. All rights reserved</span>
-      </div>
-    </footer>
-  </div>
+  </main>
 </template>
+
 <style scoped>
-/* Один шрифт для всех текстов */
-.home {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
-    sans-serif;
-  color: #2c2c2c;
-  min-height: 100vh;
-  background: #3f4a2f;
-}
-.home {
-  --screen1-panel: #f5efdf;
-  --text-dark: #2e2a23;
-  --text-muted: #6d6254;
-  --nav-link: #e8dcc7;
-  --green-bright: #a97c50;
-  --olive: #3f4a2f;
-  --sand: #ebe2ce;
-  --card: #f2e4c8;
-}
-/* ========== Шапка (скрин 1) ========== */
-.header {
-  background: linear-gradient(120deg, #2c3521 0%, #333e25 55%, #3a452b 100%);
-  padding: 0.875rem 1.5rem;
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  border-bottom: 1px solid rgba(232, 220, 199, 0.28);
-}
-.nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  max-width: 1200px;
-  margin: 0 auto;
-  flex-wrap: wrap;
-}
-.header-logo {
-  font-size: 1rem;
-  font-weight: 700;
-  color: #f3e8d6;
-  text-decoration: none;
-}
-.nav-links {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-.nav-link {
-  color: var(--nav-link);
-  text-decoration: none;
-  font-size: 0.9rem;
-  font-weight: 400;
-}
-.nav-link:hover {
-  color: #fff;
-}
-.nav-sep {
-  color: rgba(255, 255, 255, 0.3);
-  font-size: 0.9rem;
-}
-.btn-login {
-  padding: 0.5rem 1.25rem;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #2d261f;
-  background: #d8bf98;
-  border: none;
-  border-radius: 0.5rem;
-  cursor: pointer;
-  font-family: inherit;
-}
-.btn-login:hover {
-  background: #e4ceab;
-}
-/* ========== Первый экран: две колонки ========== */
-.screen-1 {
+.home-page {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  min-height: 85vh;
-  background: linear-gradient(180deg, #3f4a2f 0%, #465335 100%);
-  position: relative;
+  gap: 1rem;
+  padding-bottom: 2rem;
 }
-.hero-col {
-  padding: 3rem 2rem 3rem 4.5rem;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  position: relative;
-  overflow: hidden;
-}
-.deco {
-  position: absolute;
-  pointer-events: none;
-}
-.deco-triangle {
-  left: 1.5rem;
-  top: 2rem;
-  width: 0;
-  height: 0;
-  border-left: 40px solid transparent;
-  border-right: 40px solid transparent;
-  border-bottom: 70px solid rgba(255, 255, 255, 0.25);
-}
-.deco-rings {
-  right: 2rem;
-  bottom: 3rem;
-  width: 60px;
-  height: 60px;
-  border: 2px solid rgba(255, 255, 255, 0.25);
-  border-radius: 50%;
-}
-.deco-rings::after {
-  content: '';
-  position: absolute;
-  left: 8px;
-  top: 8px;
-  right: 8px;
-  bottom: 8px;
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  border-radius: 50%;
-}
-.hero-headline {
-  font-size: 2.35rem; /* основной размер — как на скрине, не огромный */
-  font-weight: 900;
-  color: #f7efdf;
-  line-height: 1.05; /* плотные строки, почти вплотную */
-  letter-spacing: -0.015em; /* лёгкое сжатие для выразительности */
-  margin: 0 0 1.2rem;
-  position: relative;
-  z-index: 1;
-  text-transform: uppercase;
-}
-.hero-sub {
-  font-size: 1.4rem;
-  font-weight: 500;
-  color: #e8dcc7;
-  margin: 0 0 2.5rem;
-  position: relative;
-  z-index: 1;
-}
-.hero-cta {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-  position: relative;
-  z-index: 1;
-}
-.btn-buyer {
-  padding: 0.8rem 1.8rem;
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #000;
-  background: #fff;
-  border: none;
-  border-radius: 0.6rem;
-  cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-}
-.btn-supplier {
-  padding: 0;
-  font-size: 1.1rem;
-  font-weight: 500;
-  color: #f3e8d6;
-  background: none;
-  border: none;
-  cursor: pointer;
-  text-decoration: underline;
-}
-.btn-supplier:hover {
-  opacity: 0.8;
-}
-.hero-headline {
-  font-size: 2.9rem;
-  line-height: 1.02;
-}
-/* Панель «О нас» справа — крупнее, фон чёрный полупрозрачный */
-.about-panel {
-  background: rgba(245, 239, 223, 0.12);
-  border: 1px solid rgba(233, 214, 181, 0.34);
-  margin: 2rem;
-  padding: 3.5rem 3rem;
+
+/* ОБЩИЕ КАРТОЧКИ */
+.hero,
+.section,
+.info-panel {
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid rgba(76, 124, 42, 0.14);
   border-radius: 1.5rem;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
-  align-self: center;
-  max-width: 520px;
+  backdrop-filter: blur(18px);
+  box-shadow: 0 24px 60px rgba(54, 87, 21, 0.1);
+}
+
+/* HERO */
+.hero {
   position: relative;
-  z-index: 2;
-  backdrop-filter: blur(6px);
-  color: #fff;
-}
-.about-panel-title {
-  font-size: 4.2rem;
-  font-weight: 900;
-  margin: 0 0 1.8rem;
-  text-transform: lowercase;
-  background: linear-gradient(90deg, #d6ba90 0%, #a97c50 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  line-height: 0.9;
-  letter-spacing: -0.04em;
-}
-.about-panel-text {
-  font-size: 1.35rem;
-  line-height: 1.7;
-  color: #e0e0e0;
-  font-weight: 400;
-}
-.about-panel {
-  margin: 3rem 3rem 3rem 0;
-  padding: 3.5rem 3rem;
-}
-/* Остальные стили без изменений (вернул как было) */
-.screen-2 {
-  background: linear-gradient(180deg, #ebe2ce 0%, #e1d3b7 50%, #dbcba9 100%);
-  min-height: 25vh;
-  padding: 5rem 2rem 6rem;
-  position: relative;
+  min-height: min(78vh, 760px);
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
 }
-.deco-triangle-tl {
-  left: 1.5rem;
-  top: 2rem;
-  width: 0;
-  height: 0;
-  border-left: 30px solid transparent;
-  border-right: 30px solid transparent;
-  border-bottom: 52px solid rgba(255, 255, 255, 0.3);
-}
-.deco-triangle-tr {
-  right: 2rem;
-  top: 2rem;
-  width: 0;
-  height: 0;
-  border-left: 24px solid transparent;
-  border-right: 24px solid transparent;
-  border-bottom: 42px solid rgba(255, 255, 255, 0.25);
-}
-.deco-circles-bl {
-  left: 2rem;
-  bottom: 3rem;
-  width: 50px;
-  height: 50px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 50%;
-}
-.deco-circles-bl::after {
-  content: '';
+
+.hero-bg,
+.hero-overlay {
   position: absolute;
-  left: 10px;
-  top: 10px;
-  right: 10px;
-  bottom: 10px;
-  border: 2px solid rgba(255, 255, 255, 0.25);
-  border-radius: 50%;
+  inset: 0;
 }
-.screen-title {
-  font-size: 1.75rem;
-  font-weight: 700;
-  font-family: 'Trebuchet MS', 'Segoe UI', sans-serif;
-  color: var(--text-dark);
-  text-align: center;
-  margin: 0 0 2rem;
-  position: relative;
-  z-index: 1;
-}
-.screen-2 .screen-title,
-.screen-3 .screen-title {
-  font-size: 2.05rem;
-  margin: 0 0 4rem;
-  text-align: center;
-}
-.screen-2 .steps-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 2.5rem;
-  max-width: 1100px;
-  margin: 0 auto;
-  position: relative;
-  z-index: 1;
-}
-.step-cell {
-  text-align: center;
-}
-.screen-2 .step-icon-wrap {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 1.5rem;
-}
-.screen-2 .step-icon {
-  width: 132px;
-  height: 94px;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.step-svg {
+
+.hero-bg {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
 }
-.connector-line {
-  display: none;
-  position: absolute;
-  top: 50%;
-  width: 74px;
-  height: 2px;
-  background: linear-gradient(90deg, rgba(63, 74, 47, 0.25), #3f4a2f, rgba(63, 74, 47, 0.25));
+
+.hero-overlay {
+  background:
+    linear-gradient(180deg, rgba(10, 18, 10, 0.35), rgba(10, 18, 10, 0.2)),
+    radial-gradient(circle at center, rgba(10, 18, 10, 0.06), rgba(10, 18, 10, 0.25));
 }
-.connector-line__dot {
-  position: absolute;
-  right: 18px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #a97c50;
-  box-shadow: 0 0 0 6px rgba(169, 124, 80, 0.2);
-}
-@media (min-width: 640px) {
-  .connector-line {
-    display: block;
-  }
-  .connector-line--left {
-    left: -52px;
-  }
-  .connector-line--right {
-    right: -52px;
-  }
-  .connector-line--left .connector-line__dot {
-    left: 18px;
-    right: auto;
-  }
-}
-.screen-2 .step-text {
-  font-size: 1.17rem;
-  font-weight: 600;
-  font-family: 'Trebuchet MS', 'Segoe UI', sans-serif;
-  color: var(--text-dark);
-  margin: 0;
-  line-height: 1.45;
-}
-.screen-2 .screen-title,
-.screen-3 .screen-title {
-  font-size: 2.25rem;
-}
-.screen-2 .step-text {
-  font-size: 1.15rem;
-}
-.screen-2 .step-icon {
-  width: 120px;
-  height: 84px;
-}
-/* ========== Третий экран: Почему стоит выбрать нас (шире) ========== */
-.screen-3 {
-  background: linear-gradient(180deg, #f0e5cd 0%, #e7d8b7 45%, #e0ccaa 100%);
-  padding: 4rem 1.5rem 5rem;
-  position: relative;
-  overflow: hidden;
-}
-/* Два перекрывающихся треугольника — верхний левый угол экрана 3 */
-.deco-triangles-tl {
-  left: 1.5rem;
-  top: 2rem;
-  width: 0;
-  height: 0;
-  border-left: 28px solid transparent;
-  border-right: 28px solid transparent;
-  border-bottom: 48px solid rgba(255, 255, 255, 0.35);
-}
-.deco-triangles-tl::after {
-  content: '';
-  position: absolute;
-  left: 8px;
-  top: 8px;
-  width: 0;
-  height: 0;
-  border-left: 22px solid transparent;
-  border-right: 22px solid transparent;
-  border-bottom: 38px solid rgba(255, 255, 255, 0.25);
-}
-.deco-x-br {
-  position: absolute;
-  right: 1.5rem;
-  bottom: 2rem;
-  font-size: 1.25rem;
-  color: rgba(255, 255, 255, 0.5);
-}
-.why-intro {
-  font-size: 1.05rem;
-  font-weight: 400;
-  color: var(--text-muted);
-  line-height: 1.6;
-  margin: 0 0 2rem;
-  max-width: 560px;
+
+.hero-copy {
   position: relative;
   z-index: 1;
+  text-align: center;
+  max-width: 820px;
+  color: #fff;
 }
-.why-content {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2.5rem;
-  max-width: 1280px;
+
+.hero-copy h1 {
+  margin-bottom: 0.8rem;
+  font-size: clamp(2.2rem, 5vw, 4rem);
+}
+
+.lead {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* КНОПКИ */
+.primary-btn {
+  border-radius: 999px;
+  padding: 0.9rem 1.3rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #6da13d, #4c7c2a);
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+.secondary-btn {
+  border-radius: 999px;
+  padding: 0.9rem 1.3rem;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+/* SECTION */
+.section {
+  padding: 1.25rem;
+}
+
+/* ===== ШАГИ ===== */
+.steps-shell {
+  padding: 3rem 1.5rem;
+  border-radius: 1.5rem;
+
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(18px);
+
+  border: 1px solid rgba(76, 124, 42, 0.14);
+  box-shadow: 0 24px 60px rgba(54, 87, 21, 0.12);
+
+  color: #20311c;
+}
+
+/* ЗАГОЛОВОК */
+.section-heading {
+  max-width: 860px;
+  margin: 0 auto 2.5rem;
+  text-align: center;
+}
+
+.section-heading h2 {
+  margin-bottom: 0.6rem;
+  font-size: clamp(2rem, 4vw, 3rem);
+  color: #20311c;
+}
+
+.section-heading p {
+  color: #5d6b52;
+  max-width: 720px;
   margin: 0 auto;
-  position: relative;
-  z-index: 1;
 }
-.why-left {
-  position: relative;
+
+/* GRID */
+.steps-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
 }
-.why-icon-q {
-  margin-top: 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+
+/* КАРТОЧКА ШАГА */
+.step-card {
+  text-align: center;
+  display: grid;
+  gap: 1rem;
+  justify-items: center;
+
+  background: transparent;
+  border: none;
+  box-shadow: none;
+
+  transition: transform 0.25s ease;
 }
-.q-icon {
-  width: 170px;
-  height: 170px;
+
+.step-card:hover {
+  transform: translateY(-4px);
+}
+
+/* ИКОНКА */
+.step-icon-wrap {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+
+  background: rgba(109, 161, 61, 0.12);
+  border: 1px solid rgba(76, 124, 42, 0.18);
+
+  display: grid;
+  place-items: center;
+}
+
+.step-icon {
+  width: 40px;
+  height: 40px;
   object-fit: contain;
-  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.3));
 }
-@media (min-width: 768px) {
-  .q-icon {
-    width: 160px;
-    height: 160px;
-  }
+
+/* ТЕКСТ */
+.step-card h3 {
+  margin: 0;
+  font-size: 1.4rem;
+  color: #20311c;
 }
-.why-list {
+
+.step-card p {
+  color: #5d6b52;
+  font-size: 0.95rem;
+}
+
+/* ===== БЛОК "ПОЧЕМУ ЭТО УДОБНО" ===== */
+.section--split {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* КАРТОЧКА */
+.info-panel {
+  max-width: 720px;
+  width: 100%;
+
+  padding: 2rem;
+  border-radius: 1.5rem;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 1.2rem;
+
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(18px);
+
+  border: 1px solid rgba(76, 124, 42, 0.14);
+  box-shadow: 0 24px 60px rgba(54, 87, 21, 0.12);
+
+  transition: transform 0.25s ease;
+}
+
+.info-panel:hover {
+  transform: translateY(-4px);
+}
+
+/* ИКОНКА */
+.info-icon {
+  width: 64px;
+  height: 64px;
+
+  padding: 0.9rem;
+  border-radius: 50%;
+
+  background: rgba(109, 161, 61, 0.12);
+  border: 1px solid rgba(76, 124, 42, 0.18);
+}
+
+/* ЗАГОЛОВОК */
+.info-panel h2 {
+  margin: 0;
+  font-size: 1.8rem;
+  color: #20311c;
+}
+
+/* СПИСОК */
+.info-panel ul {
   list-style: none;
   padding: 0;
   margin: 0;
-}
-.why-item {
+
   display: flex;
-  align-items: flex-start;
-  gap: 1rem;
-  margin-bottom: 1.25rem;
-}
-.why-item-mark {
-  flex-shrink: 0;
-  width: 28px;
-  height: 28px;
-  margin-top: -0.05rem;
-  border-radius: 0.45rem;
-  color: #f8f1e3;
-  background: linear-gradient(145deg, #a97c50, #8f693f);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.82rem;
-}
-.why-item-text {
-  font-size: 1rem;
-  font-weight: 400;
-  color: var(--text-dark);
-  line-height: 1.5;
-}
-.why-item-text strong {
-  font-weight: 700;
-}
-/* ========== Подвал — без изменений ========== */
-.footer {
-  background: linear-gradient(180deg, #364128 0%, #3f4a2f 100%);
-  padding: 2rem 1.5rem 1.5rem;
-  margin-top: 0;
-}
-.footer-inner {
-  display: grid;
-  grid-template-columns: 2fr 1fr 1fr;
-  gap: 2rem;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-.footer-col--logo .logo {
-  margin-bottom: 1rem;
-}
-.logo {
-  display: inline-flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 0.15rem;
+  gap: 0.6rem;
 }
-.logo-icon {
-  font-size: 1.5rem;
-  color: var(--green-bright);
-  letter-spacing: -0.2em;
+
+/* ПУНКТЫ */
+.info-panel li {
+  position: relative;
+  padding-left: 1.4rem;
+
+  color: #5d6b52;
+  font-size: 0.95rem;
 }
-.logo-text {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--green-bright);
-  letter-spacing: 0.15em;
+
+/* КАСТОМНЫЕ ТОЧКИ */
+.info-panel li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.5rem;
+
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+
+  background: #6da13d;
 }
-.footer-contact {
-  color: #fff;
-  font-size: 0.9rem;
-  margin: 0 0 0.25rem;
-}
-.footer-social {
-  display: flex;
-  gap: 1rem;
-  margin-top: 1rem;
-}
-.footer-social-link {
-  color: #fff;
-  text-decoration: none;
-  font-size: 0.85rem;
-}
-.footer-social-link:hover {
-  text-decoration: underline;
-}
-.footer-heading {
-  color: #fff;
-  font-size: 0.9rem;
-  font-weight: 600;
-}
-.footer-link {
-  display: block;
-  color: rgba(255, 255, 255, 0.9);
-  text-decoration: none;
-  font-size: 0.9rem;
-  margin-bottom: 0.5rem;
-}
-.footer-link:hover {
-  text-decoration: underline;
-}
-.footer-bottom {
-  max-width: 1200px;
-  margin: 2rem auto 0;
-  padding-top: 1.5rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.2);
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 0.85rem;
+
+/* ADAPTIVE */
+@media (max-width: 900px) {
+  .steps-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero {
+    min-height: 60vh;
+    padding: 1.25rem;
+  }
+
+  .info-panel {
+    padding: 1.5rem;
+  }
+
+  .info-panel h2 {
+    font-size: 1.5rem;
+  }
 }
 </style>
