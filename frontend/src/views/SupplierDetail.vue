@@ -336,6 +336,11 @@ const formatDate = (value: string) =>
   height: 16px;
 }
 
+.close-icon {
+  width: 14px;
+  height: 14px;
+}
+
 .hero-actions {
   display: grid;
   gap: 0.75rem;
@@ -489,7 +494,11 @@ const formatDate = (value: string) =>
   border: none;
   background: rgba(255, 255, 255, 0.95);
   border-radius: 999px;
-  padding: 0.4rem;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  display: grid;
+  place-items: center;
   cursor: pointer;
 }
 

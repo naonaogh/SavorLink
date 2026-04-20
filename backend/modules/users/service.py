@@ -52,7 +52,11 @@ class UserService:
         user = await self.get_me(session, user_id)
 
         if data.email is not None:
-            user.email = str(data.email)
+            new_email = str(data.email)
+            existing = await self.repo.get_by_email(session, new_email)
+            if existing and existing.id != user.id:
+                raise HTTPException(status_code=409, detail="Пользователь с таким email уже существует")
+            user.email = new_email
 
         password_changed = False
         if data.password is not None:

@@ -11,29 +11,8 @@ const router = useRouter()
 
 const isLoading = ref(false)
 const isCheckingOut = ref(false)
-const orderSuccess = ref(false)
 const orderError = ref<string | null>(null)
-const orderId = ref<number | null>(null)
-const createdOrdersCount = ref(0)
-const showTemplateModal = ref(false)
 const successMsg = ref<string | null>(null)
-
-const templateItems = computed(() => {
-  if (!store.state.orderTemplate) return []
-  return store.state.orderTemplate.map(item => {
-    const product = store.state.products.find(p => p.id === item.product_id)
-    return {
-      ...item,
-      product
-    }
-  }).filter(item => !!item.product)
-})
-
-const templateTotal = computed(() => {
-  return templateItems.value.reduce((sum, item) => {
-    return sum + (item.product?.price || 0) * item.quantity
-  }, 0)
-})
 
 onMounted(async () => {
   if (!authStore.token) {
@@ -56,6 +35,14 @@ const cartTotal = computed(() =>
     0,
   ),
 )
+
+const showOrderSentAndRedirect = () => {
+  successMsg.value = 'Ваш заказ отправлен'
+  setTimeout(() => {
+    successMsg.value = null
+    router.push('/my-orders')
+  }, 1200)
+}
 
 const handleDecrease = async (item: any) => {
   const newQty = item.quantity - 1
@@ -82,9 +69,7 @@ const handleCheckout = async () => {
     const result = await store.checkoutCart()
     const firstOrder = result.orders[0]
     if (firstOrder) {
-      orderId.value = firstOrder.id
-      createdOrdersCount.value = result.orders.length
-      orderSuccess.value = true
+      showOrderSentAndRedirect()
     } else {
       orderError.value = 'Не удалось оформить заказ. Проверьте товары в корзине.'
     }
@@ -96,38 +81,12 @@ const handleCheckout = async () => {
   }
 }
 
-const closeSuccess = () => {
-  orderSuccess.value = false
-  orderId.value = null
-  createdOrdersCount.value = 0
-  router.push('/my-orders')
-}
-
 const handleCreateTemplate = () => {
   store.saveOrderTemplate()
   successMsg.value = 'Ваш шаблон создан, вы можете использовать его на странице «Мои заказы»'
   setTimeout(() => { successMsg.value = null }, 6000)
 }
 
-const handleCheckoutTemplate = async () => {
-  if (isCheckingOut.value) return
-  orderError.value = null
-  isCheckingOut.value = true
-  try {
-    const result = await store.checkoutWithItems(store.state.orderTemplate || [])
-    const firstOrder = result.orders[0]
-    if (firstOrder) {
-      orderId.value = firstOrder.id
-      createdOrdersCount.value = result.orders.length
-      orderSuccess.value = true
-      showTemplateModal.value = false
-    }
-  } catch (err: any) {
-    orderError.value = err.message || 'Ошибка при оформлении заказа из шаблона'
-  } finally {
-    isCheckingOut.value = false
-  }
-}
 </script>
 
 <template>
@@ -232,11 +191,6 @@ const handleCheckoutTemplate = async () => {
           <button class="btn-checkout-secondary btn-save-template" @click="handleCreateTemplate">
             <img :src="DocumentIcon" alt="" class="btn-icon" aria-hidden="true" />
             Создать шаблон заказа
-          </button>
-
-          <button class="btn-checkout-secondary btn-use-template" @click="showTemplateModal = true">
-            <img :src="DocumentIcon" alt="" class="btn-icon" aria-hidden="true" />
-            Использовать шаблон
           </button>
 
           <router-link to="/catalog" class="btn-continue">
@@ -485,8 +439,7 @@ const handleCheckoutTemplate = async () => {
 
 /* ВСЕ ВТОРИЧНЫЕ КНОПКИ В ОДНОМ СТИЛЕ */
 .btn-checkout-secondary,
-.btn-save-template,
-.btn-use-template {
+.btn-save-template {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -508,8 +461,7 @@ const handleCheckoutTemplate = async () => {
 }
 
 .btn-checkout-secondary:hover,
-.btn-save-template:hover,
-.btn-use-template:hover {
+.btn-save-template:hover {
   background: #ffffff;
   box-shadow: 0 6px 18px rgba(76, 124, 42, 0.12);
   transform: translateY(-1px);

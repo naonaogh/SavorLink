@@ -10,7 +10,8 @@ from backend.database.models import Base
 config = context.config
 
 if not config.get_main_option("sqlalchemy.url"):
-    config.set_main_option("sqlalchemy.url", get_sync_database_url())
+    # Alembic stores values via configparser interpolation, so `%` must be escaped.
+    config.set_main_option("sqlalchemy.url", get_sync_database_url().replace("%", "%%"))
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

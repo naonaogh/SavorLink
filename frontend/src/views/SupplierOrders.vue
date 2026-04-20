@@ -632,6 +632,103 @@ const rejectOrder = async (orderId: number) => {
   border: 1px solid rgba(76,124,42,0.16);
   backdrop-filter: blur(18px);
   box-shadow: 0 24px 60px rgba(54,87,21,0.08);
+  overflow-x: auto;
+}
+
+.history-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.history-table th,
+.history-table td {
+  padding: 0.85rem 1rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.history-table thead th {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #20311c;
+  border-bottom: 1px solid rgba(76,124,42,0.16);
+}
+
+.history-table tbody tr + tr td {
+  border-top: 1px solid rgba(76,124,42,0.1);
+}
+
+.history-table th:nth-child(1),
+.history-table td:nth-child(1) {
+  width: 72px;
+}
+
+.history-table th:nth-child(2),
+.history-table td:nth-child(2) {
+  width: 120px;
+}
+
+.history-table th:nth-child(5),
+.history-table td:nth-child(5) {
+  width: 120px;
+}
+
+.history-table th:nth-child(6),
+.history-table td:nth-child(6) {
+  width: 150px;
+}
+
+.td-id {
+  font-weight: 800;
+  color: #29451e;
+}
+
+.td-date,
+.client-cell,
+.items-cell {
+  line-height: 1.35;
+}
+
+.client-cell,
+.items-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.client-cell small {
+  color: #5d6b52;
+}
+
+.items-cell span {
+  word-break: break-word;
+}
+
+.td-amount {
+  font-weight: 800;
+  color: #29451e;
+  white-space: nowrap;
+}
+
+.small-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.small-badge.status-completed {
+  background: rgba(220, 252, 231, 0.9);
+  color: #166534;
+}
+
+.small-badge.status-cancelled {
+  background: rgba(254, 226, 226, 0.9);
+  color: #991b1b;
 }
 
 /* LOADER */
