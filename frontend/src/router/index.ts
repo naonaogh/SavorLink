@@ -15,6 +15,7 @@ import Checkout from '@/views/Checkout.vue'
 import Compare from '@/views/Compare.vue'
 import Documents from '@/views/Documents.vue'
 import Notifications from '@/views/Notifications.vue'
+import Admin from '@/views/Admin.vue'
 import CabinetLayout from '@/components/CabinetLayout.vue'
 import CabinetOrders from '@/views/CabinetOrders.vue'
 import { useAuthStore } from '@/stores/authStore'
@@ -42,6 +43,7 @@ const router = createRouter({
     { path: '/my-products', redirect: '/cabinet/my-products' },
     { path: '/my-orders', redirect: '/cabinet/orders' },
     { path: '/supplier-orders', redirect: '/cabinet/orders' },
+    { path: '/admin', redirect: '/cabinet/admin' },
     {
       path: '/cabinet',
       component: CabinetLayout,
@@ -60,6 +62,7 @@ const router = createRouter({
         { path: 'analytics', name: 'CabinetAnalytics', component: Analytics },
         { path: 'documents', name: 'CabinetDocuments', component: Documents },
         { path: 'notifications', name: 'CabinetNotifications', component: Notifications },
+        { path: 'admin', name: 'CabinetAdmin', component: Admin, meta: { requiresRole: 'ADMIN' } },
       ],
     },
   ],

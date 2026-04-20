@@ -81,6 +81,7 @@ class Enterprise(Base):
     city = Column(Text)
     phone = Column(Text)
     email = Column(Text)
+    description = Column(Text, nullable=True)
     logo_url = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
@@ -127,6 +128,8 @@ class User(Base):
     )
 
     phone = Column(Text, nullable=True)
+    first_name = Column(Text, nullable=True)
+    last_name = Column(Text, nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 

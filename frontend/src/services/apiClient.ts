@@ -5,7 +5,7 @@ export interface ApiErrorPayload {
 }
 
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8002',
+  baseURL: '',
   headers: {
     'Content-Type': 'application/json',
   },

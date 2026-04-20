@@ -23,8 +23,48 @@ async def list_categories(
 ):
     from sqlalchemy import select
 
-    res = await session.execute(select(Category))
+    res = await session.execute(select(Category).order_by(Category.name))
     return res.scalars().all()
+
+from pydantic import BaseModel
+class CategoryCreate(BaseModel):
+    name: str
+
+@router.post("/categories", response_model=CategoryRead)
+async def create_category(
+    payload: CategoryCreate,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Только администратор может создавать категории")
+    
+    category = Category(name=payload.name)
+    session.add(category)
+    await session.commit()
+    await session.refresh(category)
+    return category
+
+@router.patch("/categories/{category_id}", response_model=CategoryRead)
+async def update_category(
+    category_id: int,
+    payload: CategoryCreate,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Только администратор может изменять категории")
+    
+    from sqlalchemy import select
+    res = await session.execute(select(Category).where(Category.id == category_id))
+    category = res.scalars().first()
+    if not category:
+        raise HTTPException(status_code=404, detail="Категория не найдена")
+        
+    category.name = payload.name
+    await session.commit()
+    await session.refresh(category)
+    return category
 
 
 @router.get("", response_model=List[ProductShort])
@@ -103,7 +143,12 @@ async def delete_product(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    enterprise_ids = [e.id for e in current_user.enterprises]
-    await service.delete_product(session, product_id, enterprise_ids=enterprise_ids)
+    if current_user.role == UserRole.ADMIN:
+        # Admins can delete any product
+        await service.delete_product(session, product_id, enterprise_ids=None)
+    else:
+        enterprise_ids = [e.id for e in current_user.enterprises]
+        await service.delete_product(session, product_id, enterprise_ids=enterprise_ids)
+        
     await session.commit()
     return None

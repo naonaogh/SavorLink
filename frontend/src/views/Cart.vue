@@ -259,13 +259,13 @@ const handleCreateTemplate = () => {
 /* CARD */
 .cart-item-card {
   display: grid;
-  grid-template-columns: 60px 1fr auto;
-  gap: 1rem;
+  grid-template-columns: 70px 1fr auto;
+  gap: 1.5rem;
   align-items: center;
 
   background: rgba(255,255,255,0.92);
   border-radius: 16px;
-  padding: 1rem;
+  padding: 1.25rem;
 
   box-shadow: 0 8px 20px rgba(0,0,0,0.05);
   transition: 0.2s ease;
@@ -293,8 +293,9 @@ const handleCreateTemplate = () => {
 }
 
 .item-name {
-  font-size: 1rem;
-  font-weight: 700;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #1a2a16;
 }
 
 .item-category,
@@ -460,6 +461,10 @@ const handleCreateTemplate = () => {
   transition: 0.2s ease;
 }
 
+.btn-save-template {
+  margin-top: 0.8rem;
+}
+
 .btn-checkout-secondary:hover,
 .btn-save-template:hover {
   background: #ffffff;
@@ -478,19 +483,35 @@ const handleCreateTemplate = () => {
 /* TOAST */
 .template-toast {
   position: fixed;
-  top: 20px;
-  right: 20px;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
 
-  background: white;
-  border-radius: 12px;
-  padding: 1rem;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 16px;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid rgba(76, 124, 42, 0.2);
 
-  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.12);
 
   display: flex;
-  gap: 0.5rem;
+  gap: 1rem;
   align-items: center;
 }
+
+.t-content p {
+  margin: 0 0 0.4rem 0;
+  font-weight: 700;
+  color: #2e7d32;
+}
+
+.t-content .t-link {
+  font-size: 0.9rem;
+  color: #4c7c2a;
+  text-decoration: underline;
+}
+
 
 /* ICONS */
 .t-icon,

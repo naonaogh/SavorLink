@@ -30,7 +30,7 @@ services:
       AUTH_TOKEN_SECRET: change-me-in-production
       AUTH_TOKEN_TTL_SECONDS: 604800
     ports:
-      - "8002:8002"
+      - "8082:8002"
     volumes:
       - ./:/app
     command: sh -c "alembic -c alembic.ini upgrade head && python -m backend.main"
@@ -44,7 +44,8 @@ services:
       dockerfile: Dockerfile
     container_name: savorlink-frontend
     environment:
-      VITE_API_BASE_URL: http://localhost:8002
+      VITE_API_BASE_URL: http://127.0.0.1:8082
+      CHOKIDAR_USEPOLLING: "true"
     ports:
       - "5173:5173"
     volumes:

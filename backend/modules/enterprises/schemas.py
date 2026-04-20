@@ -25,6 +25,7 @@ class EnterpriseCreate(BaseModel):
     city: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[EmailStr] = None
+    description: Optional[str] = None
     logo_url: Optional[str] = None
 
     @field_validator("short_name")
@@ -56,6 +57,7 @@ class EnterpriseUpdate(BaseModel):
     city: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[EmailStr] = None
+    description: Optional[str] = None
     logo_url: Optional[str] = None
 
     @field_validator("short_name")
@@ -99,6 +101,7 @@ class EnterpriseRead(BaseModel):
     city: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
+    description: Optional[str] = None
     logo_url: Optional[str] = None
     rating: Optional[float] = None
     review_count: Optional[int] = None

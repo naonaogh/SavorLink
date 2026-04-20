@@ -36,6 +36,7 @@ export interface Supplier {
   minOrder?: string
   delivery?: string
   reviews_list?: any[]
+  users?: { id: number; email: string }[]
 }
 
 export interface CartItem {
@@ -123,6 +124,7 @@ export function useShopStore() {
     since: e.created_at ? new Date(e.created_at).getFullYear().toString() : '2023',
     minOrder: 'от 50 000 ₽',
     delivery: 'Завтра 06:00–10:00',
+    users: e.users || [],
   })
 
   const fetchProducts = async () => {

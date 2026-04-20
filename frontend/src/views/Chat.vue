@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import api from '@/services/apiClient'
 import { useAuthStore } from '@/stores/authStore'
 
@@ -31,13 +31,13 @@ type ChatItem = {
   user2?: { id: number; email: string } | null
 }
 
+const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 
 const chats = ref<ChatListItem[]>([])
 const activeChat = ref<ChatItem | null>(null)
 const messageText = ref('')
-const newChatUserId = ref('')
 const loading = ref(false)
 const loadingChat = ref(false)
 const sending = ref(false)
@@ -101,17 +101,25 @@ const sendMessage = async () => {
   }
 }
 
-const createChat = async () => {
-  const userId = Number(newChatUserId.value)
+const createChat = async (userId: number) => {
   if (!userId) return
 
   try {
     const response = await api.post('/chats', { user2_id: userId })
-    newChatUserId.value = ''
     await loadChats()
     await openChat(response.data.id)
+    router.replace({ query: {} })
   } catch (err: any) {
-    error.value = err?.response?.data?.detail || 'Не удалось создать чат'
+    if (err.response?.status === 409 || err.response?.data?.detail?.includes('exists') || err.response?.data?.detail?.includes('существует')) {
+      await loadChats()
+      const existingChat = chats.value.find(c => c.user1_id === userId || c.user2_id === userId)
+      if (existingChat) {
+        await openChat(existingChat.id)
+      }
+      router.replace({ query: {} })
+    } else {
+      error.value = err?.response?.data?.detail || 'Не удалось создать чат'
+    }
   }
 }
 
@@ -130,6 +138,19 @@ onMounted(async () => {
   }
 
   await loadChats()
+
+  if (route.query.userId) {
+    const userId = Number(route.query.userId)
+    if (userId) {
+      const existingChat = chats.value.find(c => c.user1_id === userId || c.user2_id === userId)
+      if (existingChat) {
+        await openChat(existingChat.id)
+        router.replace({ query: {} })
+      } else {
+        await createChat(userId)
+      }
+    }
+  }
 })
 </script>
 
@@ -138,12 +159,8 @@ onMounted(async () => {
     <section class="hero">
       <div>
         <p class="eyebrow">Чат</p>
-        <h1>Диалоги с покупателями и поставщиками</h1>
-        <p>Выберите чат из списка или создайте новый по ID пользователя.</p>
-      </div>
-      <div class="new-chat">
-        <input v-model="newChatUserId" type="number" placeholder="ID пользователя" />
-        <button class="primary-btn" @click="createChat">Создать чат</button>
+        <h1>Диалоги с контрагентами</h1>
+        <p>Выберите чат из списка или перейдите в чат со страницы поставщика.</p>
       </div>
     </section>
 

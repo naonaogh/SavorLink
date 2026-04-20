@@ -44,6 +44,7 @@ class EnterpriseService:
             city=data.city,
             phone=data.phone,
             email=str(data.email) if data.email else None,
+            description=data.description,
         )
         await self.repo.create(session, ent)
 
@@ -87,6 +88,8 @@ class EnterpriseService:
             ent.phone = data.phone
         if data.email is not None:
             ent.email = str(data.email)
+        if data.description is not None:
+            ent.description = data.description
 
         await session.flush()
         await session.refresh(ent)

@@ -7,6 +7,8 @@ type UserProfile = {
   id: number
   email: string
   phone?: string | null
+  first_name?: string | null
+  last_name?: string | null
   role: string
   enterprise_id: number | null
   created_at: string
@@ -38,6 +40,8 @@ let noticeTimer: number | null = null
 const isEditingAccount = ref(false)
 const savingAccount = ref(false)
 const accountForm = ref({
+  first_name: '',
+  last_name: '',
   email: '',
   phone: '',
   old_password: '',
@@ -89,6 +93,8 @@ const createdAt = computed(() => {
 const startEditAccount = () => {
   if (!user.value) return
   accountForm.value = {
+    first_name: user.value.first_name || '',
+    last_name: user.value.last_name || '',
     email: user.value.email || '',
     phone: user.value.phone || '',
     old_password: '',
@@ -117,6 +123,8 @@ const saveAccount = async () => {
   savingAccount.value = true
   try {
     const payload: Record<string, string | null> = {
+      first_name: accountForm.value.first_name.trim() || null,
+      last_name: accountForm.value.last_name.trim() || null,
       email: accountForm.value.email.trim(),
       phone: accountForm.value.phone.trim() || null,
     }
@@ -266,6 +274,14 @@ onMounted(() => {
 
             <form v-if="isEditingAccount" class="edit-form" @submit.prevent="saveAccount">
               <div class="form-group">
+                <label>Имя</label>
+                <input v-model="accountForm.first_name" type="text" placeholder="Иван" />
+              </div>
+              <div class="form-group">
+                <label>Фамилия</label>
+                <input v-model="accountForm.last_name" type="text" placeholder="Иванов" />
+              </div>
+              <div class="form-group">
                 <label>Email</label>
                 <input v-model="accountForm.email" type="email" required />
               </div>
@@ -296,6 +312,8 @@ onMounted(() => {
 
             <dl v-else class="info-list">
               <div class="info-row"><dt>ID</dt><dd>{{ user.id }}</dd></div>
+              <div class="info-row"><dt>Имя</dt><dd>{{ user.first_name || '—' }}</dd></div>
+              <div class="info-row"><dt>Фамилия</dt><dd>{{ user.last_name || '—' }}</dd></div>
               <div class="info-row"><dt>Email</dt><dd>{{ user.email }}</dd></div>
               <div class="info-row"><dt>Телефон</dt><dd>{{ user.phone || '—' }}</dd></div>
               <div class="info-row"><dt>Роль</dt><dd>{{ user.role }}</dd></div>

@@ -25,6 +25,9 @@ const navItems = computed(() => [
   { to: '/cabinet/analytics', label: 'Аналитика', icon: NotificationIcon },
   { to: '/cabinet/documents', label: 'Документы', icon: DocumentIcon },
   { to: '/cabinet/notifications', label: 'Уведомления', icon: NotificationIcon },
+  ...(authStore.user?.role === 'ADMIN'
+    ? [{ to: '/cabinet/admin', label: 'Администрирование', icon: DocumentIcon }]
+    : []),
 ])
 </script>
 

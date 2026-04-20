@@ -16,11 +16,7 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "users",
-        sa.Column("token_version", sa.Integer(), nullable=False, server_default=sa.text("0")),
-    )
-    op.alter_column("users", "token_version", server_default=None)
+    op.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INTEGER DEFAULT 0 NOT NULL")
 
 
 def downgrade() -> None:

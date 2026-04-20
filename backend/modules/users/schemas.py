@@ -29,6 +29,8 @@ class UserCreate(BaseModel):
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
     password: Optional[str] = None
     old_password: Optional[str] = None
     enterprise_ids: Optional[List[int]] = None
@@ -52,6 +54,8 @@ class UserRead(BaseModel):
     id: int
     email: str
     phone: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
     role: UserRole
     created_at: datetime
     enterprise_id: Optional[int] = None

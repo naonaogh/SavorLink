@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import { useShopStore, type Product } from '@/stores/shopStore'
 import {
@@ -10,10 +10,12 @@ import {
   DocumentIcon,
   LocationIcon,
   MinusIcon,
+  NotificationIcon,
   StarIcon,
 } from '@/assets/icons/png'
 
 const route = useRoute()
+const router = useRouter()
 const store = useShopStore()
 const authStore = useAuthStore()
 
@@ -93,6 +95,7 @@ const formatDate = (value: string) =>
             <p class="eyebrow">Поставщик</p>
             <h1>{{ supplier.name }}</h1>
             <p class="subline">{{ supplier.company }}</p>
+            <p class="supplier-desc" v-if="supplier.description">{{ supplier.description }}</p>
             <div class="meta">
               <span class="meta-item">
                 <img :src="StarIcon" alt="" class="meta-icon" aria-hidden="true" />
@@ -111,6 +114,14 @@ const formatDate = (value: string) =>
         </div>
 
         <div class="hero-actions">
+          <button 
+            v-if="authStore.user && supplier.users?.[0] && supplier.users[0].id !== authStore.user.id" 
+            class="action-btn action-btn--chat" 
+            @click="router.push(`/chat?userId=${supplier.users[0].id}`)"
+          >
+            <img :src="NotificationIcon" alt="" class="btn-icon-chat" />
+            Написать
+          </button>
           <button v-if="isBuyer" class="action-btn action-btn--primary" @click="showReviewModal = true">
             Оценить
           </button>
@@ -291,8 +302,15 @@ const formatDate = (value: string) =>
 
 .eyebrow,
 .subline,
+.supplier-desc,
 .review-date {
   color: #5d6b52;
+}
+
+.supplier-desc {
+  margin: 0.5rem 0 0;
+  max-width: 600px;
+  line-height: 1.4;
 }
 
 .eyebrow {
@@ -366,6 +384,26 @@ const formatDate = (value: string) =>
   background: linear-gradient(135deg, #6da13d, #4c7c2a);
   color: #fff;
   border: none;
+}
+
+.action-btn--chat {
+  background: #f0f7eb;
+  border-color: rgba(76, 124, 42, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.action-btn--chat:hover {
+  background: #e6f0e0;
+  border-color: #4c7c2a;
+}
+
+.btn-icon-chat {
+  width: 18px;
+  height: 18px;
+  opacity: 0.8;
 }
 
 .panel {

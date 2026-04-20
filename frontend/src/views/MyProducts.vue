@@ -493,73 +493,207 @@ const handleDelete = async (id: number) => {
 .modal-overlay {
   position: fixed;
   inset: 0;
-
-  background: rgba(0,0,0,0.4);
+  z-index: 9999;
+  background: rgba(32, 49, 28, 0.45);
+  backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 1.5rem;
 }
 
 .modal-content {
-  width: 520px;
+  width: 100%;
+  max-width: 540px;
+  position: relative;
+  overflow: hidden;
 
-  border-radius: 1.7rem;
+  border-radius: 2.5rem;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 
+    0 20px 50px rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(76, 124, 42, 0.05);
 
-  background: rgba(255,255,255,0.85);
-  backdrop-filter: blur(18px);
+  padding: 3rem 2.5rem 2.5rem;
+  animation: modalScaleUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
 
-  border: 1px solid rgba(76,124,42,0.16);
+@keyframes modalScaleUp {
+  from { opacity: 0; transform: scale(0.9) translateY(30px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
 
-  padding: 2rem;
+.modal-close {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+  
+  width: 42px;
+  height: 42px;
+  
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  background: white;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: 1rem;
+  
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.modal-close:hover {
+  transform: rotate(90deg);
+  background: #fff1f1;
+  border-color: #ffcfcf;
+}
+
+.modal-title {
+  text-align: left;
+  font-size: 1.8rem;
+  font-weight: 900;
+  margin-bottom: 2rem;
+  color: #1a2a15;
+  letter-spacing: -0.02em;
 }
 
 /* FORM */
+.product-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 1.25rem;
+}
+
 label {
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: #5d6b52;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #4c6b3f;
+  margin-left: 0.2rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 input, select, textarea {
-  border-radius: 0.7rem;
-  border: 1px solid rgba(76,124,42,0.2);
-  padding: 0.7rem;
-  font-family: inherit;
+  border-radius: 1.2rem;
+  border: 2px solid transparent;
+  background: #f4f7f2;
+  padding: 1rem 1.25rem;
+  font-family: 'Manrope', sans-serif;
+  font-size: 1rem;
+  color: #1a2a15;
+  transition: all 0.3s ease;
+}
+
+input::placeholder, textarea::placeholder {
+  color: #a0ac98;
+}
+
+input:hover, select:hover, textarea:hover {
+  background: #ecf2e9;
 }
 
 input:focus, select:focus, textarea:focus {
   outline: none;
-  border-color: #4c7c2a;
-  box-shadow: 0 0 0 3px rgba(76,124,42,0.1);
+  background: white;
+  border-color: #6da13d;
+  box-shadow: 0 10px 25px rgba(109, 161, 61, 0.12);
+}
+
+textarea {
+  resize: none;
+  min-height: 120px;
+}
+
+.form-error {
+  color: #e53e3e;
+  font-size: 0.9rem;
+  font-weight: 700;
+  padding: 1rem;
+  background: #fff5f5;
+  border-radius: 1rem;
+  border-left: 4px solid #e53e3e;
 }
 
 /* BUTTONS */
+.modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
 .btn-submit {
-  border-radius: 999px;
-  padding: 0.75rem 1.5rem;
-
-  background: linear-gradient(135deg, #6da13d, #4c7c2a);
+  flex: 1;
+  border-radius: 1.2rem;
+  padding: 1.1rem;
+  background: linear-gradient(135deg, #7db34d, #4c7c2a);
   color: white;
-
   border: none;
+  font-size: 1.1rem;
   font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 15px 30px rgba(76, 124, 42, 0.25);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-submit:hover:not(:disabled) {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px rgba(76, 124, 42, 0.35);
+}
+
+.btn-submit:active:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.btn-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
 }
 
 .btn-cancel {
   background: none;
   border: none;
-  color: #5d6b52;
+  color: #718063;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0.5rem;
+  transition: color 0.2s;
 }
 
-/* ANIMATION */
+.btn-cancel:hover {
+  color: #1a2a15;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+/* ANIMATION (Vue Transition) */
 .modal-enter-active,
 .modal-leave-active {
-  transition: 0.2s ease;
+  transition: opacity 0.4s ease;
 }
 
 .modal-enter-from,
 .modal-leave-to {
   opacity: 0;
-  transform: translateY(10px);
 }
+
+
 </style>
