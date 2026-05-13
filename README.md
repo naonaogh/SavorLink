@@ -76,3 +76,16 @@ pytest backend/tests/test_api_smoke.py
 - Текущий Docker-стек использует PostgreSQL на порту `5440`.
 - Контейнер backend выполняет миграции перед стартом приложения.
 - API теперь в основном живет в `backend/modules/*`; старые переходные обвязки удалены из основного пути запуска.
+
+## Admin Account Bootstrap
+
+Use the helper script to create or update an admin user directly in DB:
+
+```bash
+python backend/scripts/create_admin.py --email admin@example.com --password "StrongPass123!"
+```
+
+What it does:
+- creates the user if it does not exist;
+- updates password and sets role to `ADMIN` if the user exists;
+- increments `token_version` for existing users to invalidate old tokens.
