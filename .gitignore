@@ -1,5 +1,5 @@
 # ────── Твоя ветка ──────
-.venv/
+venv/
 __pycache__/
 *.pyc
 *.pyo
@@ -63,6 +63,3 @@ __screenshots__/
 
 # Vite
 *.timestamp-*-*.mjs
-
-.vscode
-.venv
