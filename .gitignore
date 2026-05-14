@@ -63,3 +63,6 @@ __screenshots__/
 
 # Vite
 *.timestamp-*-*.mjs
+
+.vscode
+.venv
