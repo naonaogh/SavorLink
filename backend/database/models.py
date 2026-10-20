@@ -372,6 +372,27 @@ class EnterpriseReview(Base):
     )
 
 
+class PlatformReview(Base):
+    """Отзыв о самой платформе SavorLink (страница /reviews)."""
+
+    __tablename__ = "platform_reviews"
+
+    id = Column(BigInteger, primary_key=True)
+    author_name = Column(Text, nullable=False)
+    author_position = Column(Text)
+    company_name = Column(Text)
+    author_role = Column(Text, nullable=False)
+    city = Column(Text)
+    rating = Column(Integer, nullable=False)
+    comment = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint("rating BETWEEN 1 AND 5", name="ck_platform_reviews_rating"),
+        CheckConstraint("author_role IN ('BUYER', 'SUPPLIER')", name="ck_platform_reviews_author_role"),
+    )
+
+
 class ProductReview(Base):
     __tablename__ = "product_reviews"
 

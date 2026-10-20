@@ -2,7 +2,8 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
-import { useShopStore, type Product } from '@/stores/shopStore'
+import { useShopStore, type Product, type Supplier } from '@/stores/shopStore'
+import { useRequireAuth } from '@/composables/useRequireAuth'
 import {
   AddIcon,
   CalendarIcon,
@@ -18,6 +19,7 @@ const route = useRoute()
 const router = useRouter()
 const store = useShopStore()
 const authStore = useAuthStore()
+const requireAuth = useRequireAuth()
 
 const supplierId = computed(() => Number(route.params.id))
 const supplier = computed(() => store.state.currentSupplier)
@@ -39,6 +41,7 @@ onMounted(async () => {
 })
 
 const openProductModal = (product: Product) => {
+  if (!requireAuth()) return
   selectedProduct.value = product
   quantity.value = product.min_order_qty || 1
 }
@@ -52,9 +55,19 @@ const totalForProduct = computed(() =>
 )
 
 const addToCart = async () => {
-  if (!selectedProduct.value) return
+  if (!selectedProduct.value || !requireAuth()) return
   await store.addToCart(selectedProduct.value, quantity.value)
   closeProductModal()
+}
+
+const toggleSupplierFavorite = (target: Supplier) => {
+  if (!requireAuth()) return
+  store.toggleFavoriteSupplier(target)
+}
+
+const toggleProductFavorite = (product: Product) => {
+  if (!requireAuth()) return
+  store.toggleFavoriteProduct(product)
 }
 
 const submitReview = async () => {
@@ -92,7 +105,7 @@ const formatDate = (value: string) =>
         <div class="hero-main">
           <div class="avatar">{{ supplier.name.charAt(0) }}</div>
           <div>
-            <p class="eyebrow">Поставщик</p>
+            <p class="eyebrow kicker">Поставщик</p>
             <h1>{{ supplier.name }}</h1>
             <p class="subline">{{ supplier.company }}</p>
             <p class="supplier-desc" v-if="supplier.description">{{ supplier.description }}</p>
@@ -125,7 +138,7 @@ const formatDate = (value: string) =>
           <button v-if="isBuyer" class="action-btn action-btn--primary" @click="showReviewModal = true">
             Оценить
           </button>
-          <button class="action-btn" @click="store.toggleFavoriteSupplier(supplier)">
+          <button class="action-btn" @click="toggleSupplierFavorite(supplier)">
             {{ store.isSupplierFavorite(supplier.id) ? 'В избранном' : 'В избранное' }}
           </button>
         </div>
@@ -133,7 +146,10 @@ const formatDate = (value: string) =>
 
       <section class="panel">
         <div class="panel-head">
-          <h2>Продукция</h2>
+          <div>
+            <p class="kicker">Ассортимент</p>
+            <h2>Продукция</h2>
+          </div>
           <button class="link-btn" @click="showReviews = !showReviews">
             {{ showReviews ? 'Скрыть отзывы' : 'Показать отзывы' }}
           </button>
@@ -153,7 +169,7 @@ const formatDate = (value: string) =>
               </div>
               <div class="product-actions">
                 <button class="action-btn action-btn--primary" @click="openProductModal(product)">В корзину</button>
-                <button class="action-btn" @click="store.toggleFavoriteProduct(product)">
+                <button class="action-btn" @click="toggleProductFavorite(product)">
                   {{ store.isProductFavorite(product.id) ? 'В избранном' : 'В избранное' }}
                 </button>
               </div>
@@ -163,10 +179,16 @@ const formatDate = (value: string) =>
       </section>
 
       <section v-if="showReviews" class="panel">
-        <h2>Отзывы</h2>
+        <div class="panel-head">
+          <div>
+            <p class="kicker">Покупатели</p>
+            <h2>Отзывы</h2>
+          </div>
+        </div>
         <div v-if="store.state.supplierReviews.length === 0" class="empty-inline">
           Отзывов пока нет.
         </div>
+        <div v-else class="reviews-list">
         <article v-for="review in store.state.supplierReviews" :key="review.id" class="review-card">
           <div class="review-head">
             <div>
@@ -181,6 +203,7 @@ const formatDate = (value: string) =>
           </div>
           <p>{{ review.comment || 'Без комментария' }}</p>
         </article>
+        </div>
       </section>
     </template>
   </main>
@@ -191,6 +214,7 @@ const formatDate = (value: string) =>
         <button class="modal-close" @click="closeProductModal">
           <img :src="CloseIcon" alt="" class="close-icon" aria-hidden="true" />
         </button>
+        <p class="kicker">Товар</p>
         <h2>{{ selectedProduct.name }}</h2>
         <p>{{ selectedProduct.description || 'Описание отсутствует' }}</p>
         <div class="modal-meta">
@@ -222,6 +246,7 @@ const formatDate = (value: string) =>
         <button class="modal-close" @click="showReviewModal = false">
           <img :src="CloseIcon" alt="" class="close-icon" aria-hidden="true" />
         </button>
+        <p class="kicker">Отзыв</p>
         <h2>Оставить отзыв</h2>
         <div class="field">
           <label>Оценка</label>
@@ -251,107 +276,136 @@ const formatDate = (value: string) =>
 <style scoped>
 .supplier-page {
   display: grid;
-  gap: 1rem;
+  gap: 1.25rem;
   padding-bottom: 2rem;
+  color: var(--sl-ink);
 }
 
-.status-box,
-.hero-card,
-.panel,
-.review-card {
-  background: rgba(255, 255, 255, 0.76);
-  border: 1px solid rgba(76, 124, 42, 0.14);
-  border-radius: 1.5rem;
-  backdrop-filter: blur(18px);
-  box-shadow: 0 24px 60px rgba(54, 87, 21, 0.1);
+h1,
+h2,
+h3 {
+  margin: 0;
+  color: var(--sl-ink);
 }
 
+.kicker {
+  margin: 0 0 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--sl-leaf);
+}
+
+/* ===== СТАТУС ===== */
 .status-box {
-  padding: 1rem 1.15rem;
+  padding: 1rem 1.25rem;
+  background: var(--sl-paper);
+  border: 1px solid var(--sl-line);
+  border-left: 4px solid var(--sl-leaf);
+  font-weight: 600;
 }
 
 .status-box--error {
-  color: #991b1b;
-  background: #fee2e2;
+  color: #b3261e;
+  background: #fbeaea;
+  border-color: #b3261e;
 }
 
+/* ===== HERO ===== */
 .hero-card {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1.5rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1.5rem 2rem;
+  padding: clamp(1.25rem, 3vw, 2.25rem);
+  background: var(--sl-paper);
+  border: 1px solid var(--sl-line);
+  border-top: 3px solid var(--sl-ink);
 }
 
 .hero-main {
   display: flex;
-  gap: 1rem;
-  align-items: center;
+  gap: 1.5rem;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.hero-main > div:last-child {
+  min-width: 0;
 }
 
 .avatar {
-  width: 76px;
-  height: 76px;
-  border-radius: 1.25rem;
+  flex: 0 0 auto;
+  width: 84px;
+  height: 84px;
   display: grid;
   place-items: center;
-  background: linear-gradient(135deg, #6da13d, #4c7c2a);
-  color: #fff;
-  font-weight: 900;
-  font-size: 1.5rem;
+  background: var(--sl-ink);
+  color: var(--sl-lime);
+  font-family: var(--sl-display);
+  font-weight: 600;
+  font-size: 2rem;
 }
 
-.eyebrow,
-.subline,
-.supplier-desc,
-.review-date {
-  color: #5d6b52;
+.hero-card h1 {
+  font-size: clamp(1.5rem, 3vw, 2.2rem);
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.subline {
+  margin: 0.5rem 0 0;
+  font-weight: 600;
+  color: var(--sl-muted);
 }
 
 .supplier-desc {
-  margin: 0.5rem 0 0;
-  max-width: 600px;
-  line-height: 1.4;
-}
-
-.eyebrow {
-  margin: 0 0 0.25rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: 0.75rem;
-}
-
-.hero-card h1,
-.panel h2 {
-  margin: 0;
+  margin: 0.75rem 0 0;
+  max-width: 640px;
+  line-height: 1.5;
+  color: #3f4a37;
 }
 
 .meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.65rem 1rem;
-  margin-top: 0.6rem;
-  color: #3f4a2f;
-  font-weight: 700;
+  gap: 0;
+  margin-top: 1.1rem;
+  border: 1px solid var(--sl-line);
+  background: #fff;
+  width: fit-content;
+  max-width: 100%;
 }
 
 .meta-item {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.45rem;
+  padding: 0.5rem 0.85rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--sl-ink);
+}
+
+.meta-item + .meta-item {
+  border-left: 1px solid var(--sl-line);
 }
 
 .meta-icon,
 .close-icon,
 .product-image-icon,
 .star-icon,
-.qty-icon {
+.qty-icon,
+.btn-icon-chat {
   display: block;
   object-fit: contain;
+  filter: grayscale(1) brightness(0.35);
 }
 
 .meta-icon {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
 }
 
 .close-icon {
@@ -361,90 +415,251 @@ const formatDate = (value: string) =>
 
 .hero-actions {
   display: grid;
-  gap: 0.75rem;
-  align-content: center;
+  gap: 0.5rem;
+  min-width: 200px;
 }
 
+/* ===== КНОПКИ ===== */
 .action-btn,
 .link-btn,
 .qty-btn {
-  border-radius: 999px;
-  border: 1px solid rgba(76, 124, 42, 0.16);
-  background: rgba(255, 255, 255, 0.92);
-  color: #3f4a2f;
-  cursor: pointer;
+  border-radius: 0;
   font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
 
 .action-btn {
-  padding: 0.8rem 1rem;
-}
-
-.action-btn--primary {
-  background: linear-gradient(135deg, #6da13d, #4c7c2a);
-  color: #fff;
-  border: none;
-}
-
-.action-btn--chat {
-  background: #f0f7eb;
-  border-color: rgba(76, 124, 42, 0.2);
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
+  padding: 0.7rem 1.2rem;
+  background: transparent;
+  color: var(--sl-ink);
+  border: 1px solid var(--sl-ink);
 }
 
-.action-btn--chat:hover {
-  background: #e6f0e0;
-  border-color: #4c7c2a;
+.action-btn:hover:not(:disabled) {
+  background: var(--sl-ink);
+  color: #fff;
+}
+
+.action-btn--primary {
+  background: var(--sl-ink);
+  color: #fff;
+}
+
+.action-btn--primary:hover:not(:disabled) {
+  background: var(--sl-leaf);
+  border-color: var(--sl-leaf);
+}
+
+.action-btn--chat {
+  background: #fff;
+  border-color: var(--sl-line);
+}
+
+.action-btn--chat:hover:not(:disabled) {
+  background: var(--sl-lime);
+  border-color: var(--sl-lime);
+  color: var(--sl-ink);
+}
+
+.action-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .btn-icon-chat {
-  width: 18px;
-  height: 18px;
-  opacity: 0.8;
+  width: 16px;
+  height: 16px;
 }
 
+.link-btn {
+  padding: 0.4rem 0;
+  background: none;
+  border: none;
+  border-bottom: 1px solid transparent;
+  color: var(--sl-ink);
+}
+
+.link-btn:hover {
+  border-bottom-color: var(--sl-ink);
+}
+
+.action-btn:focus-visible,
+.link-btn:focus-visible,
+.qty-btn:focus-visible,
+.modal-close:focus-visible {
+  outline: 2px solid var(--sl-leaf);
+  outline-offset: 2px;
+}
+
+/* ===== ПАНЕЛИ ===== */
 .panel {
-  padding: 1.25rem;
+  padding: clamp(1.25rem, 3vw, 2.25rem);
+  background: var(--sl-paper);
+  border: 1px solid var(--sl-line);
 }
 
 .panel-head {
   display: flex;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 1rem;
+  padding-bottom: 1.25rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid var(--sl-line);
 }
 
-.link-btn {
-  padding: 0.65rem 1rem;
+.panel h2 {
+  font-size: clamp(1.25rem, 2.4vw, 1.6rem);
 }
 
+/* ===== ТОВАРЫ ===== */
 .products-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.75rem;
 }
 
 .product-card {
-  overflow: hidden;
-  border-radius: 1.3rem;
-  border: 1px solid rgba(76, 124, 42, 0.12);
-  background: rgba(255, 255, 255, 0.86);
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid var(--sl-line);
+  transition: border-color 0.2s ease;
+}
+
+.product-card:hover {
+  border-color: var(--sl-ink);
 }
 
 .product-image {
-  min-height: 150px;
+  min-height: 130px;
   display: grid;
   place-items: center;
-  background: linear-gradient(135deg, #dcefd0, #bedfbe);
-  font-size: 2.5rem;
+  background:
+    repeating-linear-gradient(135deg, rgba(20, 33, 15, 0.04) 0 1px, transparent 1px 12px),
+    var(--sl-paper);
+  border-bottom: 1px solid var(--sl-line);
 }
 
 .product-image-icon {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
+}
+
+.product-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: 1.1rem 1.1rem 1.2rem;
+}
+
+.product-body h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.product-body p {
+  align-self: flex-start;
+  margin: 0;
+  padding: 0.2rem 0.5rem;
+  background: var(--sl-paper);
+  border: 1px solid var(--sl-line);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sl-muted);
+}
+
+.product-meta {
+  display: grid;
+  gap: 0.25rem;
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--sl-line);
+}
+
+.product-meta strong {
+  font-family: var(--sl-display);
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.product-meta span {
+  font-size: 0.88rem;
+  color: var(--sl-muted);
+}
+
+.product-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: auto;
+  padding-top: 1rem;
+}
+
+.product-actions .action-btn {
+  flex: 1 1 auto;
+  padding-inline: 0.55rem;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+/* ===== ОТЗЫВЫ ===== */
+.reviews-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.review-card {
+  padding: 1.1rem 1.25rem;
+  background: #fff;
+  border: 1px solid var(--sl-line);
+}
+
+.review-card p {
+  margin: 0;
+  line-height: 1.55;
+  color: #3f4a37;
+}
+
+.review-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--sl-line);
+}
+
+.review-date {
+  margin-top: 0.15rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sl-muted);
+}
+
+.stars {
+  display: flex;
+  gap: 0.2rem;
+}
+
+.stars span {
+  opacity: 0.2;
+}
+
+.stars .active {
+  opacity: 1;
 }
 
 .star-icon {
@@ -452,64 +667,18 @@ const formatDate = (value: string) =>
   height: 14px;
 }
 
-.qty-icon {
-  width: 18px;
-  height: 18px;
-}
-
-.product-body {
-  padding: 1rem;
-}
-
-.product-body h3 {
-  margin: 0 0 0.35rem;
-}
-
-.product-body p {
-  margin: 0;
-  color: #5d6b52;
-}
-
-.product-meta {
-  display: grid;
-  gap: 0.25rem;
-  margin-top: 0.75rem;
-}
-
-.product-actions {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 0.85rem;
-}
-
-.review-card {
-  padding: 1rem;
-  margin-top: 0.85rem;
-}
-
-.review-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.5rem;
-}
-
-.stars span {
-  color: #d1d5db;
-}
-
-.stars .active {
-  color: #f59e0b;
-}
-
 .empty-inline {
-  color: #5d6b52;
+  padding: 1.25rem;
+  background: #fff;
+  border: 1px dashed var(--sl-line);
+  color: var(--sl-muted);
 }
 
+/* ===== МОДАЛКИ ===== */
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(14, 25, 9, 0.45);
+  background: rgba(20, 33, 15, 0.55);
   display: grid;
   place-items: center;
   padding: 1rem;
@@ -517,76 +686,188 @@ const formatDate = (value: string) =>
 }
 
 .modal-card {
-  width: min(560px, 100%);
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 1.5rem;
-  padding: 1.4rem;
-  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.2);
   position: relative;
+  width: min(560px, 100%);
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  padding: clamp(1.25rem, 4vw, 2rem);
+  background: #fff;
+  border: 1px solid var(--sl-line);
+  border-top: 3px solid var(--sl-ink);
+  border-radius: 0;
+  box-shadow: 0 24px 48px rgba(20, 33, 15, 0.18);
+  color: var(--sl-ink);
+}
+
+.modal-card h2 {
+  padding-right: 2.5rem;
+  font-size: clamp(1.2rem, 2.6vw, 1.5rem);
+}
+
+.modal-card > p:not(.kicker) {
+  margin: 0.75rem 0 0;
+  color: #3f4a37;
 }
 
 .modal-close {
   position: absolute;
   top: 0.9rem;
   right: 0.9rem;
-  border: none;
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 999px;
-  width: 30px;
-  height: 30px;
+  width: 34px;
+  height: 34px;
   padding: 0;
   display: grid;
   place-items: center;
+  background: #fff;
+  border: 1px solid var(--sl-line);
+  border-radius: 0;
   cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.modal-close:hover {
+  border-color: var(--sl-ink);
+  background: var(--sl-paper);
 }
 
 .modal-meta,
 .qty-row,
 .modal-actions {
   display: flex;
-  gap: 0.75rem;
-  margin-top: 1rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
+.modal-meta span {
+  padding: 0.2rem 0.5rem;
+  background: var(--sl-paper);
+  border: 1px solid var(--sl-line);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .qty-row {
   align-items: center;
+  gap: 0;
+  width: fit-content;
+  border: 1px solid var(--sl-line);
+}
+
+.qty-row > span {
+  min-width: 6rem;
+  text-align: center;
+  font-weight: 800;
 }
 
 .qty-btn {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  background: var(--sl-paper);
+  border: none;
+}
+
+.qty-btn:hover {
+  background: var(--sl-lime);
+}
+
+.qty-icon {
+  width: 16px;
+  height: 16px;
 }
 
 .modal-total {
-  margin-top: 0.75rem;
-  font-size: 1.4rem;
-  font-weight: 900;
-  color: #4c7c2a;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--sl-line);
+  font-family: var(--sl-display);
+  font-size: 1.6rem;
+  font-weight: 600;
+  color: var(--sl-ink);
+}
+
+.modal-actions .action-btn {
+  flex: 1 1 auto;
 }
 
 .field {
   display: grid;
-  gap: 0.35rem;
-  margin-top: 0.85rem;
+  gap: 0.4rem;
+  margin-top: 1.1rem;
+}
+
+.field label {
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--sl-muted);
 }
 
 select,
 textarea {
   width: 100%;
-  border-radius: 1rem;
-  border: 1px solid rgba(76, 124, 42, 0.16);
-  padding: 0.8rem 0.9rem;
+  border-radius: 0;
+  border: 1px solid var(--sl-line);
+  background: #fff;
+  padding: 0.75rem 0.9rem;
+  color: var(--sl-ink);
 }
 
+select:focus,
+textarea:focus {
+  border-color: var(--sl-leaf);
+}
+
+/* ===== АДАПТИВ ===== */
 @media (max-width: 900px) {
-  .hero-card,
+  .hero-card {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-actions {
+    min-width: 0;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+
   .review-head,
   .panel-head {
     display: grid;
   }
 
+  .panel-head .link-btn {
+    justify-self: start;
+  }
+}
+
+@media (max-width: 520px) {
   .hero-main {
     display: grid;
+    gap: 1rem;
+  }
+
+  .avatar {
+    width: 64px;
+    height: 64px;
+    font-size: 1.5rem;
+  }
+
+  .meta {
+    width: 100%;
+  }
+
+  .meta-item {
+    flex: 1 1 100%;
+  }
+
+  .meta-item + .meta-item {
+    border-left: none;
+    border-top: 1px solid var(--sl-line);
   }
 }
 </style>

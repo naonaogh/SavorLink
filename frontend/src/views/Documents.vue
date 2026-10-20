@@ -109,96 +109,177 @@ const downloadDocument = () => {
 </template>
 
 <style scoped>
+/* внешняя панель — в пару к сайдбару кабинета */
 .documents-page {
   display: grid;
-  gap: 1rem;
-  padding-bottom: 2rem;
+  gap: 1.5rem;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  background: var(--sl-paper);
+  border: 1px solid var(--sl-line);
+  border-top: 3px solid var(--sl-ink);
+  color: var(--sl-ink);
 }
 
-.hero,
-.panel {
-  background: rgba(255, 255, 255, 0.76);
-  border: 1px solid rgba(76, 124, 42, 0.14);
-  border-radius: 1.5rem;
-  backdrop-filter: blur(18px);
-  box-shadow: 0 24px 60px rgba(54, 87, 21, 0.1);
-}
-
+/* ===== ШАПКА ===== */
 .hero {
-  padding: 1.5rem;
   display: flex;
   justify-content: space-between;
-  gap: 1rem;
+  align-items: flex-end;
+  gap: 1.25rem 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--sl-line);
 }
 
 .eyebrow {
-  margin: 0 0 0.3rem;
+  margin: 0 0 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #5d6b52;
-  font-size: 0.75rem;
+  color: var(--sl-leaf);
 }
 
+.hero h1 {
+  margin: 0;
+  font-size: clamp(1.5rem, 3vw, 2.2rem);
+  color: var(--sl-ink);
+}
+
+.hero p:not(.eyebrow) {
+  margin: 0.75rem 0 0;
+  max-width: 56ch;
+  color: var(--sl-muted);
+}
+
+/* ===== КНОПКА ===== */
+.primary-btn {
+  flex: 0 0 auto;
+  padding: 0.7rem 1.2rem;
+  background: var(--sl-ink);
+  color: #fff;
+  border: 1px solid var(--sl-ink);
+  border-radius: 0;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.primary-btn:hover:not(:disabled) {
+  background: var(--sl-leaf);
+  border-color: var(--sl-leaf);
+}
+
+.primary-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.primary-btn:focus-visible {
+  outline: 2px solid var(--sl-leaf);
+  outline-offset: 2px;
+}
+
+/* ===== РАБОЧАЯ ОБЛАСТЬ ===== */
 .layout {
   display: grid;
-  grid-template-columns: 1.3fr 0.7fr;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.7fr);
   gap: 1rem;
+  align-items: start;
 }
 
 .panel {
   padding: 1.25rem;
+  background: #fff;
+  border: 1px solid var(--sl-line);
 }
 
 .field {
   display: grid;
-  gap: 0.35rem;
+  gap: 0.4rem;
   margin-bottom: 1rem;
 }
 
 .field label {
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: #5d6b52;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--sl-muted);
 }
 
 select {
-  padding: 0.75rem 0.9rem;
+  width: 100%;
+  min-width: 0;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--sl-line);
+  border-radius: 0;
+  background: #fff;
+  color: var(--sl-ink);
+  transition: border-color 0.2s ease;
+}
+
+select:hover {
+  border-color: rgba(20, 33, 15, 0.4);
+}
+
+select:focus-visible {
+  outline: 2px solid var(--sl-leaf);
+  outline-offset: -1px;
 }
 
 .preview {
-  background: rgba(249, 250, 251, 0.7);
-  border-radius: 1rem;
-  padding: 1rem;
+  margin-top: 1.25rem;
+  padding: 1rem 1.1rem;
+  background: var(--sl-paper);
+  border: 1px solid var(--sl-line);
+  border-left: 3px solid var(--sl-ink);
   overflow: auto;
 }
 
 pre {
   margin: 0;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   font-family: inherit;
-  color: #20311c;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--sl-ink);
+}
+
+/* подсказка — тёмный акцентный блок */
+.hint {
+  background: var(--sl-forest);
+  border-color: var(--sl-forest);
+  color: #fff;
+}
+
+.hint h2 {
+  margin: 0 0 0.75rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid rgba(198, 236, 154, 0.25);
+  font-size: 1.05rem;
+  color: var(--sl-lime);
 }
 
 .hint p {
-  color: #5d6b52;
-}
-
-.primary-btn {
-  border: none;
-  border-radius: 999px;
-  padding: 0.85rem 1.2rem;
-  background: linear-gradient(135deg, #6da13d, #4c7c2a);
-  color: #fff;
-  font-weight: 800;
-  cursor: pointer;
-  align-self: center;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.78);
 }
 
 @media (max-width: 900px) {
-  .hero,
+  .hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
   .layout {
-    display: grid;
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .primary-btn {
+    width: 100%;
   }
 }
 </style>

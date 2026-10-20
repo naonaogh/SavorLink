@@ -21,60 +21,48 @@ defineProps<{
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #ffffff, #eef7e7);
-  border: 1px solid rgba(76, 124, 42, 0.14);
-  font-size: 1.25rem;
-  transition: all 0.25s ease;
-  cursor: pointer;
-  color: #395127;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 0;
+  background: #fff;
+  border: 1px solid var(--sl-line);
+  color: var(--sl-ink);
+  transition: border-color 0.2s ease, background 0.2s ease;
 }
 
 .bell-container:hover {
-  transform: translateY(-1px) scale(1.04);
-  box-shadow: 0 8px 20px rgba(62, 94, 29, 0.12);
+  border-color: var(--sl-ink);
+}
+
+.has-unread {
+  border-color: var(--sl-ink);
 }
 
 .bell-icon {
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   object-fit: contain;
-}
-
-.has-unread .bell-icon {
-  animation: ring 2.2s infinite ease-in-out;
+  /* цветную png-иконку приводим к монохрому, как в сайдбаре */
+  filter: grayscale(1) brightness(0.35);
 }
 
 .badge {
   position: absolute;
-  top: -4px;
-  right: -4px;
-  background: linear-gradient(135deg, #ef4444, #f97316);
-  color: white;
-  font-size: 0.66rem;
+  top: -1px;
+  right: -1px;
+  transform: translate(45%, -45%);
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.3rem;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 0;
+  background: var(--sl-lime);
+  color: var(--sl-ink);
+  border: 1px solid var(--sl-ink);
+  font-size: 0.68rem;
   font-weight: 800;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 4px;
-  border-radius: 999px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 2px solid white;
-  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.25);
-}
-
-@keyframes ring {
-  0% { transform: rotate(0); }
-  5% { transform: rotate(18deg); }
-  10% { transform: rotate(-16deg); }
-  15% { transform: rotate(12deg); }
-  20% { transform: rotate(-8deg); }
-  25% { transform: rotate(4deg); }
-  30% { transform: rotate(-2deg); }
-  35% { transform: rotate(0); }
-  100% { transform: rotate(0); }
+  line-height: 1;
 }
 </style>

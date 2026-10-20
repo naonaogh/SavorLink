@@ -59,23 +59,25 @@ onMounted(async () => {
         <router-link to="/catalog" class="nav-link" :class="{ active: isActive('/catalog') }">Каталог</router-link>
 
         <template v-if="isGuest">
-          <router-link to="/features" class="nav-link">Возможности</router-link>
-          <router-link to="/reviews" class="nav-link">Отзывы</router-link>
-          <router-link :to="{ path: '/auth', query: { mode: 'register' } }" class="nav-link nav-link--cta">
+          <router-link to="/features" class="nav-link" :class="{ active: isActive('/features') }">Возможности</router-link>
+          <router-link to="/reviews" class="nav-link" :class="{ active: isActive('/reviews') }">Отзывы</router-link>
+          <span class="nav-divider" aria-hidden="true"></span>
+          <router-link to="/auth" class="nav-link">Вход</router-link>
+          <router-link :to="{ path: '/auth', query: { mode: 'register' } }" class="nav-btn nav-btn--solid">
             Регистрация
           </router-link>
-          <router-link to="/auth" class="nav-link">Вход</router-link>
         </template>
 
         <template v-else>
           <router-link to="/cabinet/profile" class="nav-link" :class="{ active: isActive('/cabinet') }">Кабинет</router-link>
           <router-link v-if="!isSupplier" to="/favorites" class="nav-link" :class="{ active: isActive('/favorites') }">
-            Избранное{{ favoritesCount > 0 ? ` (${favoritesCount})` : '' }}
+            Избранное<span v-if="favoritesCount > 0" class="nav-count">{{ favoritesCount }}</span>
           </router-link>
           <router-link v-if="!isSupplier" to="/cart" class="nav-link" :class="{ active: isActive('/cart') }">
-            Корзина{{ cartCount > 0 ? ` (${cartCount})` : '' }}
+            Корзина<span v-if="cartCount > 0" class="nav-count">{{ cartCount }}</span>
           </router-link>
-          <button type="button" class="btn-logout" @click="handleLogout">Выйти</button>
+          <span class="nav-divider" aria-hidden="true"></span>
+          <button type="button" class="nav-btn nav-btn--outline" @click="handleLogout">Выйти</button>
         </template>
       </div>
     </nav>
@@ -84,25 +86,25 @@ onMounted(async () => {
 
 <style scoped>
 .common-header {
-  padding: 0.7rem 1rem 0;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1rem 1rem 0;
 }
 
 .common-nav {
-  max-width: 1200px;
-  margin: 0 auto;
-  width: 100%;
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 0.9rem 1rem;
-  border-radius: 1.35rem;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(76, 124, 42, 0.14);
-  box-shadow: 0 18px 48px rgba(38, 66, 18, 0.1);
-  backdrop-filter: blur(18px);
+  gap: 1rem 2rem;
+  padding: 0.75rem 0.75rem 0.75rem 1rem;
+  background: var(--sl-paper);
+  border: 1px solid var(--sl-line);
+  border-bottom: 2px solid var(--sl-ink);
 }
 
+/* ЛОГО */
 .logo {
   display: inline-flex;
   align-items: center;
@@ -111,98 +113,176 @@ onMounted(async () => {
 }
 
 .logo-mark {
-  width: 2.35rem;
-  height: 2.35rem;
-  border-radius: 0.85rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, var(--sl-green-1), var(--sl-green-2));
-  color: #20311c;
-  font-weight: 900;
-  box-shadow: 0 10px 24px rgba(109, 161, 61, 0.22);
+  width: 2.25rem;
+  height: 2.25rem;
+  display: grid;
+  place-items: center;
+  background: var(--sl-ink);
+  color: var(--sl-lime);
+  font-family: var(--sl-display);
+  font-weight: 700;
+  font-size: 1rem;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.logo:hover .logo-mark {
+  background: var(--sl-lime);
+  color: var(--sl-ink);
 }
 
 .logo-text {
-  font-size: 1.05rem;
-  font-weight: 800;
+  font-family: var(--sl-display);
+  font-size: 1rem;
+  font-weight: 600;
   letter-spacing: 0.01em;
-  color: #20311c;
+  color: var(--sl-ink);
 }
 
+/* ССЫЛКИ */
 .nav-links {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
+  gap: 0.25rem;
   flex-wrap: wrap;
 }
 
 .nav-link {
-  color: #4d5e42;
-  font-size: 0.94rem;
-  transition: all 0.2s ease;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #4a5a42;
   white-space: nowrap;
-  padding: 0.55rem 0.9rem;
-  border-radius: 999px;
+  transition: color 0.2s ease;
 }
 
-.nav-link:hover,
+.nav-link::after {
+  content: '';
+  position: absolute;
+  left: 0.8rem;
+  right: 0.8rem;
+  bottom: 0.2rem;
+  height: 2px;
+  background: var(--sl-leaf);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.25s ease;
+}
+
+.nav-link:hover {
+  color: var(--sl-ink);
+}
+
+.nav-link:hover::after {
+  transform: scaleX(1);
+}
+
 .nav-link.active {
-  color: #20311c;
-  background: rgba(165, 219, 116, 0.18);
+  color: var(--sl-ink);
 }
 
-.nav-link--cta {
-  background: linear-gradient(135deg, var(--sl-green-1), var(--sl-green-2));
-  color: #20311c;
-  box-shadow: 0 10px 24px rgba(109, 161, 61, 0.16);
+.nav-link.active::after {
+  transform: scaleX(1);
+  background: var(--sl-ink);
 }
 
-.nav-link--cta:hover {
-  background: linear-gradient(135deg, #b7e58a, #d6f1bf);
+.nav-count {
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.3rem;
+  display: inline-grid;
+  place-items: center;
+  background: var(--sl-lime);
+  color: var(--sl-ink);
+  font-size: 0.72rem;
+  font-weight: 800;
 }
 
-.btn-logout {
-  background: linear-gradient(135deg, #ffffff, #f2fbeb);
-  border: 1px solid rgba(76, 124, 42, 0.14);
-  color: #304125;
-  padding: 0.55rem 1rem;
-  border-radius: 999px;
-  cursor: pointer;
+.nav-divider {
+  width: 1px;
+  height: 1.5rem;
+  margin: 0 0.5rem;
+  background: var(--sl-line);
+}
+
+/* КНОПКИ */
+.nav-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.65rem 1.15rem;
+  border-radius: 0;
   font-size: 0.9rem;
-  transition: all 0.2s ease;
+  font-weight: 700;
   white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
 
-.btn-logout:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 18px rgba(82, 112, 34, 0.14);
+.nav-btn--solid {
+  background: var(--sl-ink);
+  color: #fff;
+  border: 1px solid var(--sl-ink);
 }
 
+.nav-btn--solid:hover {
+  background: var(--sl-leaf);
+  border-color: var(--sl-leaf);
+}
+
+.nav-btn--outline {
+  background: transparent;
+  color: var(--sl-ink);
+  border: 1px solid var(--sl-ink);
+}
+
+.nav-btn--outline:hover {
+  background: var(--sl-ink);
+  color: #fff;
+}
+
+.nav-link:focus-visible,
+.nav-btn:focus-visible,
+.logo:focus-visible {
+  outline: 2px solid var(--sl-leaf);
+  outline-offset: 2px;
+}
+
+/* АДАПТИВ */
 @media (max-width: 1024px) {
   .common-nav {
     align-items: flex-start;
     flex-direction: column;
   }
+
+  .nav-links {
+    margin-left: -0.8rem;
+  }
 }
 
 @media (max-width: 768px) {
   .common-header {
-    padding-inline: 0.7rem;
+    padding: 0.75rem 0.75rem 0;
   }
 
   .common-nav {
-    padding: 0.85rem;
-  }
-
-  .nav-links {
-    gap: 0.4rem;
+    padding: 0.75rem;
   }
 
   .nav-link {
-    font-size: 0.82rem;
-    padding: 0.45rem 0.72rem;
+    font-size: 0.85rem;
+    padding: 0.5rem 0.65rem;
+  }
+
+  .nav-link::after {
+    left: 0.65rem;
+    right: 0.65rem;
+  }
+
+  .nav-divider {
+    display: none;
   }
 }
 </style>
-

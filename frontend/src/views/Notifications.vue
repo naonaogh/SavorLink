@@ -91,26 +91,30 @@ const badgeLabel = {
       <div>
         <p class="eyebrow">Уведомления</p>
         <h1>Лента событий</h1>
-        <p>Здесь собраны заказы, новые сообщения и системные подсказки.</p>
+        <p class="hero-lead">Здесь собраны заказы, новые сообщения и системные подсказки.</p>
       </div>
       <router-link to="/chat" class="primary-btn">Перейти в чат</router-link>
     </section>
 
-    <div v-if="loading" class="state-box">Загрузка уведомлений...</div>
+    <div class="feed">
+      <div v-if="loading" class="state-box">Загрузка уведомлений...</div>
 
-    <div v-else-if="notifications.length === 0" class="state-box">
-      У вас пока нет уведомлений.
-    </div>
+      <div v-else-if="notifications.length === 0" class="state-box">
+        У вас пока нет уведомлений.
+      </div>
 
-    <div v-else class="list">
-      <article v-for="item in notifications" :key="item.id" class="notify-card">
-        <div class="notify-head">
-          <span class="badge" :class="item.kind">{{ badgeLabel[item.kind] }}</span>
-          <time>{{ formatDate(item.date) }}</time>
-        </div>
-        <h2>{{ item.title }}</h2>
-        <p>{{ item.text }}</p>
-      </article>
+      <div v-else class="list">
+        <article v-for="item in notifications" :key="item.id" class="notify-card">
+          <div class="notify-head">
+            <span class="badge" :class="item.kind">{{ badgeLabel[item.kind] }}</span>
+            <time>{{ formatDate(item.date) }}</time>
+          </div>
+          <div class="notify-body">
+            <h2>{{ item.title }}</h2>
+            <p>{{ item.text }}</p>
+          </div>
+        </article>
+      </div>
     </div>
   </main>
 </template>
@@ -118,101 +122,170 @@ const badgeLabel = {
 <style scoped>
 .notifications-page {
   display: grid;
-  gap: 1rem;
-  padding-bottom: 2rem;
+  background: var(--sl-paper);
+  border: 1px solid var(--sl-line);
+  border-top: 3px solid var(--sl-ink);
+  color: var(--sl-ink);
 }
 
-.hero,
-.notify-card,
-.state-box {
-  background: rgba(255, 255, 255, 0.76);
-  border: 1px solid rgba(76, 124, 42, 0.14);
-  border-radius: 1.5rem;
-  backdrop-filter: blur(18px);
-  box-shadow: 0 24px 60px rgba(54, 87, 21, 0.1);
-}
-
+/* ===== ШАПКА ===== */
 .hero {
-  padding: 1.5rem;
   display: flex;
   justify-content: space-between;
-  gap: 1rem;
+  align-items: flex-end;
+  gap: 1rem 2rem;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border-bottom: 1px solid var(--sl-line);
 }
 
 .eyebrow {
-  margin: 0 0 0.3rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #5d6b52;
+  margin: 0 0 0.6rem;
   font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--sl-leaf);
+}
+
+.hero h1 {
+  margin: 0;
+  font-size: clamp(1.5rem, 3vw, 2.2rem);
+  color: var(--sl-ink);
+}
+
+.hero-lead {
+  margin: 0.75rem 0 0;
+  max-width: 60ch;
+  color: var(--sl-muted);
 }
 
 .primary-btn {
   display: inline-flex;
-  align-self: center;
+  flex: 0 0 auto;
+  align-items: center;
   justify-content: center;
-  border-radius: 999px;
-  padding: 0.85rem 1.2rem;
-  background: linear-gradient(135deg, #6da13d, #4c7c2a);
+  gap: 0.5rem;
+  padding: 0.7rem 1.2rem;
+  background: var(--sl-ink);
   color: #fff;
-  font-weight: 800;
+  border: 1px solid var(--sl-ink);
+  border-radius: 0;
+  font-weight: 700;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.primary-btn:hover {
+  background: var(--sl-leaf);
+  border-color: var(--sl-leaf);
+}
+
+.primary-btn:focus-visible {
+  outline: 2px solid var(--sl-leaf);
+  outline-offset: 2px;
+}
+
+/* ===== ЛЕНТА ===== */
+.feed {
+  padding: clamp(1.25rem, 3vw, 2rem);
 }
 
 .state-box {
   padding: 1.25rem;
+  background: #fff;
+  border: 1px solid var(--sl-line);
+  color: var(--sl-muted);
 }
 
 .list {
   display: grid;
-  gap: 0.85rem;
+  gap: 1px;
+  background: var(--sl-line);
+  border: 1px solid var(--sl-line);
 }
 
 .notify-card {
-  padding: 1.1rem 1.2rem;
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr);
+  gap: 0.5rem 1.5rem;
+  padding: 1.1rem 1.25rem;
+  background: #fff;
+  transition: background 0.2s ease;
+}
+
+.notify-card:hover {
+  background: var(--sl-paper);
 }
 
 .notify-head {
   display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  color: #5d6b52;
-  font-size: 0.85rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--sl-muted);
 }
 
 .badge {
-  padding: 0.25rem 0.6rem;
-  border-radius: 999px;
-  font-weight: 700;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
 }
 
 .badge.order {
-  background: #ecfdf5;
-  color: #166534;
+  background: var(--sl-ink);
+  color: var(--sl-lime);
 }
 
 .badge.message {
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: var(--sl-lime);
+  color: var(--sl-ink);
 }
 
 .badge.system {
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--sl-paper);
+  border-color: var(--sl-line);
+  color: var(--sl-ink);
+}
+
+.notify-body {
+  min-width: 0;
 }
 
 .notify-card h2 {
-  margin: 0.65rem 0 0.3rem;
+  margin: 0 0 0.3rem;
+  font-family: inherit;
   font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--sl-ink);
 }
 
 .notify-card p {
   margin: 0;
-  color: #5d6b52;
+  color: var(--sl-muted);
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 900px) {
   .hero {
-    display: grid;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 600px) {
+  .notify-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .notify-head {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
   }
 }
 </style>

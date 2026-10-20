@@ -71,77 +71,102 @@ const navItems = computed(() => [
 <style scoped>
 .cabinet-page {
   width: 100%;
-  padding: 1rem 0 2rem;
+  padding: 1.25rem 0 2rem;
 }
 
 .cabinet-layout {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
-  gap: 1.5rem;
+  grid-template-columns: 270px minmax(0, 1fr);
+  gap: 1.25rem;
   align-items: start;
 }
 
+/* САЙДБАР */
 .cabinet-sidebar {
   position: sticky;
-  top: 5.75rem;
+  top: 1rem;
   display: grid;
-  gap: 1.25rem;
-  padding: 1.25rem;
-  border-radius: 1.5rem;
-  background: rgba(255, 255, 255, 0.76);
-  border: 1px solid rgba(76, 124, 42, 0.14);
-  box-shadow: 0 24px 60px rgba(54, 87, 21, 0.1);
-  backdrop-filter: blur(18px);
+  background: var(--sl-paper);
+  border: 1px solid var(--sl-line);
+  border-top: 3px solid var(--sl-ink);
 }
 
 .cabinet-summary {
-  padding-bottom: 1rem;
-  border-bottom: 1px solid rgba(76, 124, 42, 0.12);
+  padding: 1.35rem 1.25rem 1.25rem;
+  border-bottom: 1px solid var(--sl-line);
 }
 
 .cabinet-kicker {
-  margin: 0 0 0.35rem;
-  font-size: 0.75rem;
+  margin: 0 0 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #5d6b52;
+  letter-spacing: 0.2em;
+  color: var(--sl-leaf);
 }
 
 .cabinet-summary h2 {
   margin: 0;
-  color: #20311c;
-  font-size: 1.45rem;
+  color: var(--sl-ink);
+  font-size: 1.05rem;
+  overflow-wrap: anywhere;
 }
 
 .cabinet-summary p {
-  margin: 0.45rem 0 0;
-  color: #5d6b52;
+  margin: 0.6rem 0 0;
+  font-size: 0.9rem;
+  color: var(--sl-muted);
 }
 
+/* НАВИГАЦИЯ */
 .cabinet-nav {
   display: grid;
-  gap: 0.55rem;
 }
 
 .cabinet-link {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.85rem 0.95rem;
-  border-radius: 1rem;
-  border: 1px solid rgba(76, 124, 42, 0.14);
-  background: rgba(255, 255, 255, 0.82);
-  color: #3f4a2f;
-  font-weight: 700;
-  transition: all 0.2s ease;
+  padding: 0.85rem 1.25rem;
+  border-bottom: 1px solid var(--sl-line);
+  color: #3f4a37;
+  font-weight: 600;
+  transition: background 0.2s ease, color 0.2s ease, padding-left 0.2s ease;
 }
 
-.cabinet-link:hover,
-.cabinet-link--active {
-  background: linear-gradient(135deg, #bfe59e, #e8f5da);
-  color: #20311c;
-  border-color: rgba(76, 124, 42, 0.22);
-  transform: translateY(-1px);
+.cabinet-link::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--sl-leaf);
+  transform: scaleY(0);
+  transition: transform 0.2s ease;
+}
+
+.cabinet-link:hover {
+  background: #fff;
+  color: var(--sl-ink);
+  padding-left: 1.5rem;
+}
+
+.cabinet-link:hover::before {
+  transform: scaleY(1);
+}
+
+.cabinet-link--active,
+.cabinet-link--active:hover {
+  background: var(--sl-ink);
+  color: #fff;
+  padding-left: 1.25rem;
+}
+
+.cabinet-link--active::before {
+  transform: scaleY(1);
+  background: var(--sl-lime);
 }
 
 .cabinet-link-icon {
@@ -151,21 +176,40 @@ const navItems = computed(() => [
   flex: 0 0 auto;
 }
 
+/* цветные png-иконки приводим к монохрому */
+.cabinet-link-icon {
+  filter: grayscale(1) brightness(0.35);
+}
+
+.cabinet-link--active .cabinet-link-icon {
+  filter: grayscale(1) brightness(0) invert(1);
+}
+
+/* НИЖНЯЯ КНОПКА */
 .cabinet-footer {
-  border-top: 1px solid rgba(76, 124, 42, 0.12);
-  padding-top: 1rem;
+  padding: 1.25rem;
 }
 
 .cabinet-catalog-link {
   display: block;
   width: 100%;
-  border-radius: 1rem;
-  padding: 0.85rem 1rem;
+  padding: 0.8rem 1rem;
   text-align: center;
-  border: 1px solid rgba(76, 124, 42, 0.16);
-  background: rgba(255, 255, 255, 0.86);
-  color: #3f4a2f;
+  border: 1px solid var(--sl-ink);
+  color: var(--sl-ink);
   font-weight: 700;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.cabinet-catalog-link:hover {
+  background: var(--sl-ink);
+  color: #fff;
+}
+
+.cabinet-link:focus-visible,
+.cabinet-catalog-link:focus-visible {
+  outline: 2px solid var(--sl-leaf);
+  outline-offset: -2px;
 }
 
 .cabinet-content {
@@ -180,11 +224,25 @@ const navItems = computed(() => [
   .cabinet-sidebar {
     position: static;
   }
+
+  .cabinet-nav {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  }
+
+  /* одиночный последний пункт (например, «Администрирование») — на всю ширину */
+  .cabinet-link:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  .cabinet-link span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
 }
 
 @media (max-width: 768px) {
   .cabinet-page {
-    padding-top: 0.5rem;
+    padding-top: 0.75rem;
   }
 }
 </style>

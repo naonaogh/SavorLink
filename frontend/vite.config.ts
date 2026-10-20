@@ -10,6 +10,7 @@ const API_PROXY_PATHS = [
   '/chats',
   '/enterprises',
   '/favorites',
+  '/platform-reviews',
   '/users',
   '/docs',
   '/openapi.json',

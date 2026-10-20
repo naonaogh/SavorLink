@@ -256,7 +256,10 @@ onMounted(() => {
 
       <section class="profile-card">
         <div class="profile-card-head">
-          <h1 class="profile-title">Профиль</h1>
+          <div>
+            <p class="kicker">Личные данные</p>
+            <h1 class="profile-title">Профиль</h1>
+          </div>
           <button type="button" class="refresh-btn" @click="loadProfile">Обновить</button>
         </div>
 
@@ -266,7 +269,7 @@ onMounted(() => {
         <div v-else-if="user" class="profile-grid">
           <article class="info-card">
             <div class="card-header">
-              <h2 class="info-title">Аккаунт</h2>
+              <h2 class="info-title"><span class="card-index" aria-hidden="true">01</span>Аккаунт</h2>
               <button v-if="!isEditingAccount" type="button" class="edit-btn" @click="startEditAccount">
                 Изменить
               </button>
@@ -323,7 +326,7 @@ onMounted(() => {
 
           <article class="info-card">
             <div class="card-header">
-              <h2 class="info-title">Предприятие</h2>
+              <h2 class="info-title"><span class="card-index" aria-hidden="true">02</span>Предприятие</h2>
               <button
                 v-if="user.role === 'SUPPLIER' && enterprise && !isEditingEnterprise"
                 type="button"
@@ -334,7 +337,7 @@ onMounted(() => {
               </button>
             </div>
 
-            <div v-if="enterprise">
+            <div v-if="enterprise" class="card-body">
               <form v-if="isEditingEnterprise" @submit.prevent="saveEnterprise" class="edit-form">
                 <div class="form-group">
                   <label>Название</label>
@@ -378,7 +381,7 @@ onMounted(() => {
               </dl>
             </div>
 
-            <div v-else>
+            <div v-else class="card-body">
               <div v-if="isCreatingEnterprise">
                 <form @submit.prevent="createEnterprise" class="edit-form">
                   <div class="form-group">
@@ -416,7 +419,7 @@ onMounted(() => {
 
               <div v-else-if="isJoiningEnterprise">
                 <div class="join-list">
-                  <p v-if="loadingEnterprises">Загрузка списка...</p>
+                  <p v-if="loadingEnterprises" class="state-text">Загрузка списка...</p>
                   <div v-else class="enterprise-items">
                     <div v-for="ent in joinableEnterprises" :key="ent.id" class="enterprise-item">
                       <div class="ent-info">
@@ -447,44 +450,42 @@ onMounted(() => {
 
 <style scoped>
 .profile-page {
-  min-height: 100vh;
-  font-family: 'Manrope', sans-serif;
-  background: transparent;
+  color: var(--sl-ink);
 }
 
 .profile-main {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 2rem 1.5rem;
+  display: grid;
 }
 
+/* ===== ТОСТ ===== */
 .notice {
   position: fixed;
   top: 84px;
   right: 1.5rem;
   z-index: 1000;
-  max-width: min(420px, calc(100vw - 3rem));
-  border-radius: 1rem;
-  padding: 0.85rem 1rem;
+  max-width: min(420px, calc(100vw - 2rem));
+  padding: 0.9rem 1.1rem;
   font-weight: 700;
-  backdrop-filter: blur(14px);
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.14);
+  background: #fff;
+  border: 1px solid var(--sl-line);
+  border-left: 4px solid var(--sl-leaf);
+  box-shadow: 0 24px 48px rgba(20, 33, 15, 0.18);
 }
 
 .notice--success {
-  background: rgba(220, 252, 231, 0.92);
-  color: #166534;
+  color: var(--sl-ink);
 }
 
 .notice--error {
-  background: rgba(254, 226, 226, 0.92);
-  color: #991b1b;
+  color: #b3261e;
+  background: #fbeaea;
+  border-color: rgba(179, 38, 30, 0.3);
+  border-left-color: #b3261e;
 }
 
 .profile-toast-enter-active,
 .profile-toast-leave-active {
-  transition: all 0.24s ease;
+  transition: opacity 0.25s ease, transform 0.25s ease;
 }
 
 .profile-toast-enter-from,
@@ -493,66 +494,120 @@ onMounted(() => {
   transform: translateY(-8px);
 }
 
+/* ===== ПАНЕЛЬ ===== */
 .profile-card {
-  border-radius: 1.7rem;
-  padding: 2rem;
-  background: rgba(255, 255, 255, 0.78);
-  border: 1px solid rgba(76, 124, 42, 0.16);
-  backdrop-filter: blur(18px);
-  box-shadow: 0 24px 60px rgba(54, 87, 21, 0.14);
+  background: var(--sl-paper);
+  border: 1px solid var(--sl-line);
+  border-top: 3px solid var(--sl-ink);
+  padding: clamp(1.25rem, 3vw, 2rem);
 }
 
 .profile-card-head {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
+  align-items: flex-end;
   gap: 1rem;
+  padding-bottom: 1.5rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid var(--sl-line);
+}
+
+.kicker {
+  margin: 0 0 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--sl-leaf);
 }
 
 .profile-title {
-  font-size: 1.6rem;
-  color: #20311c;
   margin: 0;
+  font-size: clamp(1.5rem, 3vw, 2.2rem);
+  color: var(--sl-ink);
 }
 
+/* ===== КНОПКИ ===== */
 .refresh-btn,
 .primary-btn,
 .save-btn,
-.join-btn-small {
-  border-radius: 999px;
-  padding: 0.62rem 1.18rem;
-  background: linear-gradient(135deg, #6da13d, #4c7c2a);
-  color: #fff;
-  border: none;
-  cursor: pointer;
-  font-weight: 700;
-}
-
+.join-btn-small,
 .secondary-btn,
 .edit-btn,
 .cancel-btn {
-  border-radius: 999px;
-  padding: 0.58rem 1.08rem;
-  background: #fff;
-  border: 1px solid rgba(76, 124, 42, 0.2);
-  color: #30422a;
-  cursor: pointer;
+  border-radius: 0;
+  padding: 0.7rem 1.2rem;
   font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
 
+.primary-btn,
+.save-btn,
+.join-btn-small {
+  background: var(--sl-ink);
+  color: #fff;
+  border: 1px solid var(--sl-ink);
+}
+
+.primary-btn:hover,
+.save-btn:hover,
+.join-btn-small:hover {
+  background: var(--sl-leaf);
+  border-color: var(--sl-leaf);
+}
+
+.refresh-btn,
+.secondary-btn,
+.edit-btn,
+.cancel-btn {
+  background: transparent;
+  color: var(--sl-ink);
+  border: 1px solid var(--sl-ink);
+}
+
+.refresh-btn:hover,
+.secondary-btn:hover,
+.edit-btn:hover,
+.cancel-btn:hover {
+  background: var(--sl-ink);
+  color: #fff;
+}
+
+.edit-btn,
+.join-btn-small {
+  padding: 0.45rem 0.85rem;
+  font-size: 0.85rem;
+}
+
+.refresh-btn:focus-visible,
+.primary-btn:focus-visible,
+.save-btn:focus-visible,
+.join-btn-small:focus-visible,
+.secondary-btn:focus-visible,
+.edit-btn:focus-visible,
+.cancel-btn:focus-visible {
+  outline: 2px solid var(--sl-leaf);
+  outline-offset: 2px;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ===== КАРТОЧКИ ===== */
 .profile-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 1rem;
+  gap: 1px;
+  background: var(--sl-line);
+  border: 1px solid var(--sl-line);
 }
 
 .info-card {
-  border-radius: 1.2rem;
-  padding: 1rem;
-  background: rgba(255, 255, 255, 0.74);
-  border: 1px solid rgba(76, 124, 42, 0.12);
-  backdrop-filter: blur(12px);
+  min-width: 0;
+  background: #fff;
 }
 
 .card-header {
@@ -560,12 +615,36 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   gap: 0.75rem;
-  margin-bottom: 0.7rem;
+  min-height: 4rem;
+  padding: 0.85rem 1.25rem;
+  border-bottom: 1px solid var(--sl-line);
 }
 
 .info-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
   margin: 0;
-  color: #20311c;
+  font-size: 1.1rem;
+  color: var(--sl-ink);
+}
+
+.card-index {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--sl-leaf);
+}
+
+.info-card > .edit-form,
+.info-card > .info-list,
+.card-body {
+  padding: 0.5rem 1.25rem 1.25rem;
+}
+
+.info-card > .edit-form,
+.card-body > .edit-form {
+  padding-top: 1.25rem;
 }
 
 .info-list {
@@ -575,64 +654,90 @@ onMounted(() => {
 .info-row {
   display: flex;
   justify-content: space-between;
+  align-items: baseline;
   gap: 0.8rem;
-  padding: 0.55rem 0;
-  border-bottom: 1px solid rgba(76, 124, 42, 0.1);
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--sl-line);
+}
+
+.info-row:last-child {
+  border-bottom: none;
 }
 
 .info-row dt {
-  color: #5d6b52;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--sl-muted);
 }
 
 .info-row dd {
   margin: 0;
   text-align: right;
   font-weight: 700;
-  color: #24361f;
-  word-break: break-word;
+  color: var(--sl-ink);
+  overflow-wrap: anywhere;
 }
 
+/* ===== ФОРМЫ ===== */
 .edit-form {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.9rem;
+  padding-top: 0.75rem;
 }
 
 .form-group {
   display: grid;
-  gap: 0.3rem;
+  gap: 0.35rem;
 }
 
 .form-group label {
-  font-size: 0.84rem;
-  color: #4f5f48;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--sl-muted);
 }
 
 .form-group input {
-  padding: 0.62rem 0.72rem;
-  border-radius: 0.7rem;
-  border: 1px solid rgba(76, 124, 42, 0.2);
-  background: rgba(255, 255, 255, 0.95);
+  width: 100%;
+  min-width: 0;
+  border-radius: 0;
+  border: 1px solid var(--sl-line);
+  background: #fff;
 }
 
-.form-group input:focus {
-  outline: none;
-  border-color: #4c7c2a;
-  box-shadow: 0 0 0 3px rgba(76, 124, 42, 0.12);
+.form-group input:focus-visible {
+  border-color: var(--sl-leaf);
 }
 
 .edit-actions {
   display: flex;
   justify-content: flex-end;
   gap: 0.6rem;
-  margin-top: 0.3rem;
+  padding-top: 1rem;
+  margin-top: 0.25rem;
+  border-top: 1px solid var(--sl-line);
 }
 
+/* ===== СОСТОЯНИЯ ===== */
 .state-text {
-  color: #5d6b52;
+  margin: 0;
+  color: var(--sl-muted);
 }
 
 .state-text--error {
-  color: #991b1b;
+  padding: 0.9rem 1rem;
+  color: #b3261e;
+  background: #fbeaea;
+  border: 1px solid rgba(179, 38, 30, 0.3);
+}
+
+.no-enterprise-actions {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem 0 0.25rem;
 }
 
 .action-buttons {
@@ -641,61 +746,65 @@ onMounted(() => {
   flex-wrap: wrap;
 }
 
+/* ===== ПРИСОЕДИНЕНИЕ ===== */
 .join-list {
   display: grid;
-  gap: 0.7rem;
+  gap: 1rem;
+  padding-top: 0.75rem;
+  justify-items: start;
 }
 
 .enterprise-items {
+  justify-self: stretch;
   display: grid;
-  gap: 0.65rem;
-  max-height: 260px;
+  max-height: 280px;
   overflow: auto;
-  padding-right: 0.3rem;
+  border: 1px solid var(--sl-line);
 }
 
 .enterprise-item {
   display: flex;
   justify-content: space-between;
-  gap: 0.7rem;
+  gap: 0.75rem;
   align-items: center;
-  border: 1px solid rgba(76, 124, 42, 0.16);
-  background: rgba(255, 255, 255, 0.92);
-  border-radius: 0.8rem;
-  padding: 0.6rem 0.72rem;
+  padding: 0.75rem 0.9rem;
+  border-bottom: 1px solid var(--sl-line);
+  background: #fff;
+  transition: background 0.2s ease;
+}
+
+.enterprise-item:last-child {
+  border-bottom: none;
+}
+
+.enterprise-item:hover {
+  background: var(--sl-paper);
 }
 
 .ent-info {
   display: grid;
-  gap: 0.16rem;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.ent-info strong {
+  color: var(--sl-ink);
+  overflow-wrap: anywhere;
 }
 
 .ent-info span {
-  font-size: 0.83rem;
-  color: #5d6b52;
+  font-size: 0.82rem;
+  color: var(--sl-muted);
 }
 
 .mt-2 {
-  margin-top: 0.35rem;
+  margin-top: 0;
 }
 
 @media (max-width: 900px) {
-  .profile-main {
-    padding: 1.3rem 0.85rem;
-  }
-
-  .profile-card {
-    padding: 1.25rem;
-  }
-
-  .profile-card-head {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
   .info-row {
     flex-direction: column;
-    align-items: flex-start;
+    gap: 0.2rem;
   }
 
   .info-row dd {
@@ -703,12 +812,30 @@ onMounted(() => {
   }
 
   .edit-actions {
-    justify-content: stretch;
     flex-direction: column-reverse;
   }
 
   .edit-actions button {
     width: 100%;
+  }
+}
+
+@media (max-width: 520px) {
+  .profile-card-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .profile-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .card-header,
+  .info-card > .edit-form,
+  .info-card > .info-list,
+  .card-body {
+    padding-left: 1rem;
+    padding-right: 1rem;
   }
 }
 </style>

@@ -77,7 +77,7 @@ const submitCheckout = async () => {
   <main class="checkout-page">
     <section class="hero-card">
       <div>
-        <p class="eyebrow">Проверка заказа</p>
+        <p class="eyebrow"><span class="eyebrow-num" aria-hidden="true">Шаг 02 /</span> Проверка заказа</p>
         <h1 class="page-title">Оформление заказа</h1>
         <p class="page-text">Проверьте состав, поставщиков и сумму перед отправкой заказа.</p>
       </div>
@@ -96,6 +96,7 @@ const submitCheckout = async () => {
 
     <div v-else class="checkout-layout">
       <section class="card-list">
+        <p class="block-kicker">Состав заказа</p>
         <div v-for="item in cartItems" :key="item.id" class="order-row">
           <div>
             <h2>{{ item.product.name }}</h2>
@@ -109,6 +110,7 @@ const submitCheckout = async () => {
       </section>
 
       <aside class="summary-card">
+        <p class="block-kicker">Детали</p>
         <div class="field">
           <label>Тип заказа</label>
           <input v-model="orderType" type="text" />
@@ -120,6 +122,7 @@ const submitCheckout = async () => {
         </div>
 
         <div class="summary-list">
+          <p class="summary-list-label">Поставщики</p>
           <div v-for="supplier in groupedSuppliers" :key="supplier.id" class="summary-line">
             <span>{{ supplier.name }}</span>
             <strong>{{ supplier.amount.toFixed(0) }} ₽</strong>
@@ -142,76 +145,130 @@ const submitCheckout = async () => {
 .checkout-page {
   display: grid;
   gap: 1.25rem;
-  padding-bottom: 2rem;
+  padding: 1.25rem 0 2rem;
+  color: var(--sl-ink);
 }
 
-.hero-card,
-.summary-card,
-.card-list,
-.state-box {
-  background: rgba(255, 255, 255, 0.76);
-  border: 1px solid rgba(76, 124, 42, 0.14);
-  border-radius: 1.5rem;
-  backdrop-filter: blur(18px);
-  box-shadow: 0 24px 60px rgba(54, 87, 21, 0.1);
+p,
+h1,
+h2 {
+  margin: 0;
 }
 
+/* ШАПКА СТРАНИЦЫ */
 .hero-card {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1.5rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  background: var(--sl-paper);
+  border: 1px solid var(--sl-line);
+  border-top: 3px solid var(--sl-ink);
 }
 
-.eyebrow {
-  margin: 0 0 0.35rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+.hero-card > div:first-child {
+  padding: clamp(1.25rem, 3vw, 2rem) clamp(1.25rem, 3vw, 2.25rem);
+}
+
+.eyebrow,
+.block-kicker {
+  margin-bottom: 0.6rem;
   font-size: 0.75rem;
-  color: #5d6b52;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--sl-leaf);
 }
 
 .page-title {
-  margin: 0;
-  font-size: 1.9rem;
+  font-size: clamp(1.5rem, 3vw, 2.2rem);
+  color: var(--sl-ink);
 }
 
 .page-text {
-  margin: 0.5rem 0 0;
-  color: #5d6b52;
+  margin-top: 0.75rem;
+  max-width: 56ch;
+  color: var(--sl-muted);
 }
 
 .hero-total {
-  min-width: 180px;
+  min-width: 240px;
   display: grid;
   align-content: center;
-  justify-items: end;
-  text-align: right;
+  gap: 0.5rem;
+  padding: 1.5rem clamp(1.25rem, 3vw, 2.25rem);
+  color: #fff;
+  background:
+    repeating-linear-gradient(135deg, rgba(198, 236, 154, 0.05) 0 1px, transparent 1px 14px),
+    var(--sl-forest);
+}
+
+.hero-total span {
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--sl-lime);
 }
 
 .hero-total strong {
-  font-size: 1.8rem;
-  color: #4c7c2a;
+  font-family: var(--sl-display);
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  font-weight: 600;
+  line-height: 1.1;
+  white-space: nowrap;
 }
 
+/* СОСТОЯНИЯ */
+.state-box {
+  display: grid;
+  justify-items: start;
+  gap: 1rem;
+  padding: 1.5rem;
+  background: var(--sl-paper);
+  border: 1px solid var(--sl-line);
+  color: var(--sl-muted);
+  font-weight: 600;
+}
+
+.state-box p {
+  color: var(--sl-ink);
+}
+
+/* РАСКЛАДКА */
 .checkout-layout {
   display: grid;
-  grid-template-columns: 1.5fr 0.9fr;
-  gap: 1rem;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 0.9fr);
+  gap: 1.25rem;
+  align-items: start;
 }
 
 .card-list,
-.summary-card,
-.state-box {
-  padding: 1.25rem;
+.summary-card {
+  padding: 1.5rem;
+  background: var(--sl-paper);
+  border: 1px solid var(--sl-line);
 }
 
+.card-list .block-kicker,
+.summary-card .block-kicker {
+  padding-bottom: 0.9rem;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--sl-line);
+}
+
+/* СТРОКИ ЗАКАЗА */
 .order-row {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
   gap: 1rem;
-  padding: 1rem 0;
-  border-bottom: 1px solid rgba(76, 124, 42, 0.12);
+  padding: 1rem 0.75rem;
+  margin: 0 -0.75rem;
+  border-bottom: 1px solid var(--sl-line);
+  transition: background 0.2s ease;
+}
+
+.order-row:hover {
+  background: #fff;
 }
 
 .order-row:last-child {
@@ -219,24 +276,48 @@ const submitCheckout = async () => {
 }
 
 .order-row h2 {
-  margin: 0 0 0.35rem;
+  margin-bottom: 0.3rem;
+  font-family: inherit;
   font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--sl-ink);
 }
 
 .order-row p {
-  margin: 0;
-  color: #5d6b52;
+  font-size: 0.88rem;
+  color: var(--sl-muted);
 }
 
 .row-meta {
   display: grid;
   justify-items: end;
-  gap: 0.2rem;
+  gap: 0.25rem;
   white-space: nowrap;
 }
 
+.row-meta span {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--sl-muted);
+}
+
 .row-meta strong {
-  color: #3f5f2a;
+  font-family: var(--sl-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--sl-ink);
+}
+
+/* ПРАВАЯ ПАНЕЛЬ */
+.summary-card {
+  position: sticky;
+  top: 1rem;
+  border-top: 3px solid var(--sl-ink);
+}
+
+.summary-card .block-kicker {
+  margin-bottom: 1.25rem;
 }
 
 .field {
@@ -245,10 +326,21 @@ const submitCheckout = async () => {
   margin-bottom: 1rem;
 }
 
-.field label {
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: #5d6b52;
+.field label,
+.summary-list-label {
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--sl-muted);
+}
+
+.field input,
+.field textarea {
+  width: 100%;
+  border-radius: 0;
+  border: 1px solid var(--sl-line);
+  background: #fff;
 }
 
 .field textarea {
@@ -257,75 +349,146 @@ const submitCheckout = async () => {
 
 .summary-list {
   display: grid;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
+  margin: 0.5rem 0 1.25rem;
+  border-bottom: 2px solid var(--sl-ink);
+}
+
+.summary-list-label {
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--sl-line);
 }
 
 .summary-line {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--sl-line);
+  font-size: 0.92rem;
+}
+
+.summary-line:last-child {
+  border-bottom: none;
+}
+
+.summary-line strong {
+  white-space: nowrap;
 }
 
 .message {
-  padding: 0.9rem 1rem;
-  border-radius: 1rem;
+  padding: 0.8rem 1rem;
   margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+  font-weight: 600;
 }
 
 .message--error {
-  background: #fee2e2;
-  color: #991b1b;
+  background: #fbeaea;
+  border: 1px solid #b3261e;
+  color: #b3261e;
 }
 
 .message--success {
-  background: #dcfce7;
-  color: #166534;
+  background: var(--sl-lime);
+  border: 1px solid var(--sl-lime);
+  color: var(--sl-ink);
 }
 
-.checkout-btn {
-  width: 100%;
-  border: none;
-  border-radius: 999px;
-  padding: 0.95rem 1.2rem;
-  background: linear-gradient(135deg, #6da13d, #4c7c2a);
-  color: #fff;
-  font-weight: 800;
-  cursor: pointer;
-  margin-bottom: 0.75rem;
-}
-
+/* КНОПКИ */
+.checkout-btn,
 .secondary-link,
 .primary-link {
   display: inline-flex;
   justify-content: center;
+  align-items: center;
+  border-radius: 0;
+  padding: 0.85rem 1.2rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.checkout-btn,
+.primary-link {
+  background: var(--sl-ink);
+  color: #fff;
+  border: 1px solid var(--sl-ink);
+}
+
+.checkout-btn {
   width: 100%;
-  border-radius: 999px;
-  padding: 0.8rem 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.checkout-btn:hover:not(:disabled),
+.primary-link:hover {
+  background: var(--sl-leaf);
+  border-color: var(--sl-leaf);
+}
+
+.checkout-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .secondary-link {
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(76, 124, 42, 0.16);
-  color: #3f4a2f;
+  width: 100%;
+  background: transparent;
+  color: var(--sl-ink);
+  border: 1px solid var(--sl-ink);
 }
 
-.primary-link {
-  background: linear-gradient(135deg, #bfe59e, #a5db74);
-  color: #20311c;
-  font-weight: 700;
+.secondary-link:hover {
+  background: var(--sl-ink);
+  color: #fff;
 }
 
+.checkout-btn:focus-visible,
+.secondary-link:focus-visible,
+.primary-link:focus-visible {
+  outline: 2px solid var(--sl-leaf);
+  outline-offset: 2px;
+}
+
+/* АДАПТИВ */
 @media (max-width: 900px) {
-  .checkout-layout,
+  .checkout-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .summary-card {
+    position: static;
+  }
+}
+
+@media (max-width: 640px) {
+  .checkout-page {
+    padding-top: 0.75rem;
+  }
+
   .hero-card {
     grid-template-columns: 1fr;
-    display: grid;
   }
 
   .hero-total {
-    justify-items: start;
-    text-align: left;
+    min-width: 0;
+  }
+
+  .card-list,
+  .summary-card {
+    padding: 1.25rem 1rem;
+  }
+
+  .order-row {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .row-meta {
+    width: 100%;
+    grid-auto-flow: column;
+    justify-content: space-between;
+    align-items: baseline;
   }
 }
 </style>

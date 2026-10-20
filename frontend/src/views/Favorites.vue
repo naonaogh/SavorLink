@@ -49,7 +49,7 @@ const removeSupplier = async (supplier: Supplier) => {
   <main class="favorites-page">
     <section class="hero">
       <div>
-        <p class="eyebrow">Избранное</p>
+        <p class="eyebrow kicker">Избранное</p>
         <h1>Избранные товары и поставщики</h1>
         <p>Товары и поставщики собраны в одном месте, с быстрым переходом в карточку и удалением.</p>
       </div>
@@ -132,6 +132,7 @@ const removeSupplier = async (supplier: Supplier) => {
   <teleport to="body">
     <div v-if="selectedProduct" class="modal-backdrop" @click.self="closeProduct">
       <div class="modal-card">
+        <p class="kicker">Товар</p>
         <h2>{{ selectedProduct.name }}</h2>
         <p>{{ selectedProduct.description || 'Описание отсутствует' }}</p>
         <div class="qty-row">
@@ -146,7 +147,7 @@ const removeSupplier = async (supplier: Supplier) => {
         <div class="modal-total">
           {{ (Number(selectedProduct.price) * quantity).toFixed(0) }} ₽
         </div>
-        <div class="actions">
+        <div class="actions modal-actions">
           <button class="primary-btn" @click="addProductToCart">Добавить</button>
           <button class="secondary-btn" @click="closeProduct">Отмена</button>
         </div>
@@ -158,111 +159,130 @@ const removeSupplier = async (supplier: Supplier) => {
 <style scoped>
 .favorites-page {
   display: grid;
-  gap: 1rem;
+  gap: 1.25rem;
   padding-bottom: 2rem;
+  color: var(--sl-ink);
 }
 
-.hero,
-.section,
-.empty-card,
-.product-card,
-.supplier-card {
-  background: rgba(255, 255, 255, 0.76);
-  border: 1px solid rgba(76, 124, 42, 0.14);
-  border-radius: 1.5rem;
-  backdrop-filter: blur(18px);
-  box-shadow: 0 24px 60px rgba(54, 87, 21, 0.1);
+h1,
+h2 {
+  margin: 0;
+  color: var(--sl-ink);
+}
+
+.kicker {
+  margin: 0 0 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--sl-leaf);
 }
 
 .product-image-icon,
 .qty-icon,
-.action-icon {
+.action-icon,
+.rating-icon {
   display: block;
   object-fit: contain;
+  filter: grayscale(1) brightness(0.35);
 }
 
 .product-image-icon {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
 }
 
-.qty-icon,
+.qty-icon {
+  width: 16px;
+  height: 16px;
+}
+
 .action-icon {
-  width: 18px;
-  height: 18px;
-}
-
-.rating {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
+  width: 15px;
+  height: 15px;
+  transition: filter 0.2s ease;
 }
 
 .rating-icon {
-  width: 16px;
-  height: 16px;
-  object-fit: contain;
-  display: block;
+  width: 13px;
+  height: 13px;
 }
 
+/* ===== ЗАГОЛОВОК ===== */
 .hero {
-  padding: 1.5rem;
+  padding: clamp(1.25rem, 3vw, 2.25rem);
+  background: var(--sl-paper);
+  border: 1px solid var(--sl-line);
+  border-top: 3px solid var(--sl-ink);
 }
 
-.eyebrow {
-  margin: 0 0 0.3rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #5d6b52;
-  font-size: 0.75rem;
+.hero h1 {
+  font-size: clamp(1.5rem, 3vw, 2.2rem);
+  line-height: 1.15;
 }
 
-.hero h1,
-.section h2 {
-  margin: 0;
+.hero p:not(.kicker) {
+  margin: 0.85rem 0 0;
+  max-width: 60ch;
+  color: var(--sl-muted);
 }
 
-.hero p {
-  margin: 0.5rem 0 0;
-  color: #5d6b52;
-}
-
+/* ===== ТАБЫ ===== */
 .tabs {
   display: flex;
-  gap: 0.75rem;
+  flex-wrap: wrap;
+  background: var(--sl-paper);
+  border: 1px solid var(--sl-line);
 }
 
 .tab {
-  border: 1px solid rgba(76, 124, 42, 0.16);
-  background: rgba(255, 255, 255, 0.9);
-  border-radius: 999px;
-  padding: 0.8rem 1rem;
-  cursor: pointer;
+  position: relative;
+  padding: 0.85rem 1.25rem;
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--sl-line);
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: #3f4a37;
   font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.tab:hover {
+  color: var(--sl-ink);
+  border-bottom-color: var(--sl-leaf);
 }
 
 .tab.active {
-  background: linear-gradient(135deg, #6da13d, #4c7c2a);
+  background: var(--sl-ink);
+  border-bottom-color: var(--sl-lime);
   color: #fff;
-  border-color: transparent;
 }
 
+/* ===== СЕКЦИЯ ===== */
 .section {
-  padding: 1rem;
+  padding: clamp(1rem, 3vw, 2rem);
+  background: var(--sl-paper);
+  border: 1px solid var(--sl-line);
 }
 
 .empty-card {
-  padding: 2rem;
-  text-align: center;
-  color: #5d6b52;
   display: grid;
-  gap: 0.75rem;
+  justify-items: center;
+  gap: 1rem;
+  padding: clamp(1.5rem, 4vw, 2.5rem);
+  background: #fff;
+  border: 1px dashed rgba(20, 33, 15, 0.3);
+  text-align: center;
+  color: var(--sl-muted);
 }
 
 .products-grid,
 .suppliers-grid {
   display: grid;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .products-grid {
@@ -270,82 +290,130 @@ const removeSupplier = async (supplier: Supplier) => {
 }
 
 .suppliers-grid {
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
 }
 
-.product-card {
-  overflow: hidden;
+/* ===== ТОВАР ===== */
+.product-card,
+.supplier-card {
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid var(--sl-line);
+  transition: border-color 0.2s ease;
+}
+
+.product-card:hover,
+.supplier-card:hover {
+  border-color: var(--sl-ink);
 }
 
 .product-image {
-  min-height: 160px;
+  position: relative;
+  min-height: 130px;
   display: grid;
   place-items: center;
-  background: linear-gradient(135deg, #dcefd0, #bedfbe);
-  position: relative;
+  background:
+    repeating-linear-gradient(135deg, rgba(20, 33, 15, 0.04) 0 1px, transparent 1px 12px),
+    var(--sl-paper);
+  border-bottom: 1px solid var(--sl-line);
   cursor: pointer;
-}
-
-.product-image span:first-child {
-  font-size: 2.4rem;
 }
 
 .badge {
   position: absolute;
-  right: 0.75rem;
-  bottom: 0.75rem;
-  padding: 0.3rem 0.6rem;
-  border-radius: 999px;
-  background: rgba(76, 124, 42, 0.85);
-  color: #fff;
-  font-size: 0.75rem;
+  left: 0.75rem;
+  top: 0.75rem;
+  padding: 0.2rem 0.5rem;
+  background: var(--sl-ink);
+  color: var(--sl-lime);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .product-body {
-  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: 1.1rem 1.1rem 1.2rem;
 }
 
 .product-body h2 {
-  margin: 0;
+  font-family: inherit;
   font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: 0;
   cursor: pointer;
 }
 
-.supplier,
-.description,
-.price-row span,
-.supplier-head p {
-  color: #5d6b52;
+.product-body h2:hover {
+  color: var(--sl-leaf);
 }
 
 .supplier {
+  align-self: flex-start;
+  margin: 0.35rem 0 0;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sl-leaf);
+  border-bottom: 1px solid transparent;
   cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.supplier:hover {
+  border-bottom-color: var(--sl-leaf);
 }
 
 .description {
-  margin: 0.5rem 0;
+  margin: 0.6rem 0 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: #3f4a37;
 }
 
 .price-row {
   display: grid;
-  gap: 0.3rem;
+  gap: 0.25rem;
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--sl-line);
+}
+
+.price-row strong {
+  font-family: var(--sl-display);
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.price-row span {
+  font-size: 0.88rem;
+  color: var(--sl-muted);
 }
 
 .actions,
 .supplier-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
-  margin-top: 0.85rem;
+  margin-top: auto;
+  padding-top: 1rem;
 }
 
+/* ===== ПОСТАВЩИК ===== */
 .supplier-card {
-  padding: 1rem;
+  padding: 1.1rem 1.1rem 1.2rem;
 }
 
 .supplier-head {
   display: grid;
   grid-template-columns: 56px 1fr;
-  gap: 0.8rem;
+  gap: 0.9rem;
   align-items: center;
   cursor: pointer;
 }
@@ -353,54 +421,119 @@ const removeSupplier = async (supplier: Supplier) => {
 .avatar {
   width: 56px;
   height: 56px;
-  border-radius: 1rem;
   display: grid;
   place-items: center;
-  background: linear-gradient(135deg, #bfe59e, #a5db74);
-  color: #20311c;
-  font-weight: 900;
+  background: var(--sl-paper);
+  border: 1px solid var(--sl-line);
+  font-family: var(--sl-display);
+  font-weight: 600;
+  font-size: 1.3rem;
+  color: var(--sl-ink);
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.supplier-card:hover .avatar {
+  background: var(--sl-ink);
+  color: var(--sl-lime);
 }
 
 .supplier-head h2 {
-  margin: 0;
-  font-size: 1rem;
+  font-family: inherit;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.35;
+}
+
+.supplier-head p {
+  margin: 0.25rem 0 0;
+  font-size: 0.88rem;
+  color: var(--sl-muted);
 }
 
 .supplier-meta {
   display: flex;
-  gap: 0.75rem;
-  margin-top: 0.85rem;
-  color: #3f4a2f;
-  font-weight: 700;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 1rem;
 }
 
+.supplier-meta > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.5rem;
+  background: var(--sl-paper);
+  border: 1px solid var(--sl-line);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* ===== КНОПКИ ===== */
 .primary-btn,
 .secondary-btn,
 .qty-btn {
-  border-radius: 999px;
-  border: 1px solid rgba(76, 124, 42, 0.16);
+  border-radius: 0;
   font-weight: 700;
   cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.primary-btn,
+.secondary-btn {
+  flex: 1 1 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.7rem 1.2rem;
 }
 
 .primary-btn {
-  flex: 1;
-  background: linear-gradient(135deg, #6da13d, #4c7c2a);
+  background: var(--sl-ink);
   color: #fff;
-  padding: 0.8rem 1rem;
+  border: 1px solid var(--sl-ink);
+}
+
+.primary-btn:hover {
+  background: var(--sl-leaf);
+  border-color: var(--sl-leaf);
 }
 
 .secondary-btn {
-  flex: 1;
-  background: rgba(255, 255, 255, 0.95);
-  color: #3f4a2f;
-  padding: 0.8rem 1rem;
+  background: transparent;
+  color: var(--sl-ink);
+  border: 1px solid var(--sl-ink);
 }
 
+.secondary-btn:hover {
+  background: var(--sl-ink);
+  color: #fff;
+}
+
+.secondary-btn:hover .action-icon {
+  filter: grayscale(1) brightness(0) invert(1);
+}
+
+.empty-card .primary-btn {
+  flex: 0 0 auto;
+}
+
+.primary-btn:focus-visible,
+.secondary-btn:focus-visible,
+.qty-btn:focus-visible,
+.tab:focus-visible {
+  outline: 2px solid var(--sl-leaf);
+  outline-offset: 2px;
+}
+
+/* ===== МОДАЛКА ===== */
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(14, 25, 9, 0.45);
+  background: rgba(20, 33, 15, 0.55);
   display: grid;
   place-items: center;
   padding: 1rem;
@@ -409,43 +542,87 @@ const removeSupplier = async (supplier: Supplier) => {
 
 .modal-card {
   width: min(520px, 100%);
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 1.5rem;
-  padding: 1.4rem;
-  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.2);
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  padding: clamp(1.25rem, 4vw, 2rem);
+  background: #fff;
+  border: 1px solid var(--sl-line);
+  border-top: 3px solid var(--sl-ink);
+  border-radius: 0;
+  box-shadow: 0 24px 48px rgba(20, 33, 15, 0.18);
+  color: var(--sl-ink);
 }
 
-.qty-row,
-.modal-total {
-  margin-top: 1rem;
+.modal-card h2 {
+  font-size: clamp(1.2rem, 2.6vw, 1.5rem);
+}
+
+.modal-card > p:not(.kicker) {
+  margin: 0.75rem 0 0;
+  color: #3f4a37;
 }
 
 .qty-row {
   display: flex;
-  gap: 0.75rem;
   align-items: center;
+  width: fit-content;
+  margin-top: 1.25rem;
+  border: 1px solid var(--sl-line);
+}
+
+.qty-row > span {
+  min-width: 6rem;
+  text-align: center;
+  font-weight: 800;
 }
 
 .qty-btn {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  background: var(--sl-paper);
+  border: none;
+}
+
+.qty-btn:hover {
+  background: var(--sl-lime);
 }
 
 .modal-total {
-  font-size: 1.4rem;
-  font-weight: 900;
-  color: #4c7c2a;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--sl-line);
+  font-family: var(--sl-display);
+  font-size: 1.6rem;
+  font-weight: 600;
+  color: var(--sl-ink);
 }
 
-@media (max-width: 900px) {
-  .tabs,
-  .actions,
-  .supplier-actions {
+.modal-actions {
+  margin-top: 1.25rem;
+  padding-top: 0;
+}
+
+/* ===== АДАПТИВ ===== */
+@media (max-width: 520px) {
+  .tabs {
     display: grid;
+    grid-template-columns: 1fr;
   }
 
-  .supplier-head {
-    grid-template-columns: 1fr;
+  .tab {
+    text-align: left;
+    border-right: none;
+  }
+
+  .tab + .tab {
+    border-top: 1px solid var(--sl-line);
+  }
+
+  .empty-card .primary-btn {
+    justify-self: stretch;
   }
 }
 </style>

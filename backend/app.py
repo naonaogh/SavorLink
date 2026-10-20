@@ -14,6 +14,7 @@ from backend.modules.chats.router import router as chats_router
 from backend.modules.enterprises.router import router as enterprises_router
 from backend.modules.favorites.router import router as favorites_router
 from backend.modules.orders.router import router as orders_router
+from backend.modules.platform_reviews.router import router as platform_reviews_router
 from backend.modules.products.router import router as products_router
 from backend.modules.users.router import router as users_router
 
@@ -96,6 +97,7 @@ app.include_router(auth_router)
 app.include_router(users_router)
 app.include_router(enterprises_router)
 app.include_router(favorites_router)
+app.include_router(platform_reviews_router)
 
 
 @app.get("/")

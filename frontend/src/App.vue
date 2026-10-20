@@ -28,6 +28,15 @@ import CommonNavbar from '@/components/CommonNavbar.vue'
   --sl-text: #1f2f1a;
   --sl-muted: #5c6f57;
   --sl-shadow: 0 20px 50px rgba(40, 80, 20, 0.12);
+
+  /* строгий стиль: главная, шапка, подвал */
+  --sl-ink: #14210f;
+  --sl-forest: #1f3a17;
+  --sl-leaf: #5e8f35;
+  --sl-lime: #c6ec9a;
+  --sl-paper: #f7f9f2;
+  --sl-line: rgba(20, 33, 15, 0.14);
+  --sl-display: 'Unbounded', 'Manrope', 'Segoe UI', sans-serif;
 }
 
 html,
@@ -90,43 +99,47 @@ img {
   padding: 1rem 1rem 0;
 }
 
-.glass-card {
-  background: var(--sl-surface);
-  border: 1px solid var(--sl-border);
-  border-radius: 16px;
-  backdrop-filter: blur(14px);
-  box-shadow: var(--sl-shadow);
+h1,
+h2 {
+  font-family: var(--sl-display);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
 }
 
+::selection {
+  background: var(--sl-lime);
+  color: var(--sl-ink);
+}
+
+.glass-card,
 .surface-panel {
-  background: var(--sl-surface-strong);
-  border: 1px solid var(--sl-border);
-  border-radius: 16px;
-  backdrop-filter: blur(12px);
-  box-shadow: var(--sl-shadow);
+  background: var(--sl-paper);
+  border: 1px solid var(--sl-line);
+  border-radius: 0;
 }
 
 .soft-button {
-  border: none;
-  border-radius: 999px;
-  padding: 0.65rem 1.4rem;
-  background: linear-gradient(135deg, var(--sl-green-2), var(--sl-green-1));
-  color: var(--sl-green-4);
+  border: 1px solid var(--sl-ink);
+  border-radius: 0;
+  padding: 0.7rem 1.3rem;
+  background: var(--sl-ink);
+  color: #fff;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease;
 }
 
 .soft-button:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 25px rgba(80, 120, 40, 0.2);
+  background: var(--sl-leaf);
+  border-color: var(--sl-leaf);
 }
 
 .page-title,
 .screen-title,
 .section-title,
 .hero-headline {
-  color: var(--sl-green-4);
+  color: var(--sl-ink);
 }
 
 .text-muted {
@@ -134,20 +147,35 @@ img {
 }
 
 input,
+select,
+textarea,
 .search-input,
 .field-input {
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid var(--sl-border);
-  border-radius: 12px;
+  background: #fff;
+  border: 1px solid var(--sl-line);
+  border-radius: 0;
   padding: 0.7rem 0.9rem;
   color: var(--sl-text);
 }
 
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--sl-leaf);
+  outline-offset: -1px;
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  padding: 0;
+  accent-color: var(--sl-ink);
+}
+
 .card {
-  background: var(--sl-surface);
-  border-radius: 14px;
+  background: #fff;
+  border: 1px solid var(--sl-line);
+  border-radius: 0;
   padding: 1rem;
-  box-shadow: var(--sl-shadow);
 }
 
 @media (max-width: 768px) {

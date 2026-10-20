@@ -4,7 +4,7 @@ from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.core.security import AuthService
-from backend.database.models import User
+from backend.database.models import User, UserRole
 from backend.modules.users.repository import UserRepository
 from backend.modules.users.schemas import UserCreate, UserUpdate
 
@@ -15,6 +15,10 @@ class UserService:
         self.auth = auth or AuthService()
 
     async def register(self, session: AsyncSession, data: UserCreate) -> User:
+        # Администраторов создают только через backend/scripts/create_admin.py
+        if data.role == UserRole.ADMIN:
+            raise HTTPException(status_code=403, detail="Регистрация с ролью администратора недоступна")
+
         existing = await self.repo.get_by_email(session, str(data.email))
         if existing:
             raise HTTPException(status_code=409, detail="Пользователь с таким email уже зарегистрирован")
