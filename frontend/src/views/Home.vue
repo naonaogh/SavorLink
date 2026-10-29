@@ -1,18 +1,38 @@
 <script setup lang="ts">
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import BasketIcon from '@/assets/icons/basket.svg'
-import TruckIcon from '@/assets/icons/grusovik.svg'
-import DocsIcon from '@/assets/icons/docs.svg'
 import HeroImage from '@/assets/images/home-hero.jpg'
+import api from '@/services/apiClient'
 import { useAuthStore } from '@/stores/authStore'
+import AppAvatar from '@/components/ui/AppAvatar.vue'
+import AppButton from '@/components/ui/AppButton.vue'
+import AppIcon from '@/components/ui/AppIcon.vue'
+import RatingStars from '@/components/ui/RatingStars.vue'
+import type { IconName } from '@/components/ui/icons'
+import { formatDate, pluralize } from '@/utils/format'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
-const steps = [
-  { title: 'Выбираете поставщика и товары в каталоге', icon: BasketIcon },
-  { title: 'Оформляете заказ и отслеживаете статусы', icon: TruckIcon },
-  { title: 'Получаете документы и аналитику в одном месте', icon: DocsIcon },
+const isGuest = computed(() => !authStore.token)
+const isSupplier = computed(() => authStore.user?.role === 'SUPPLIER')
+
+const steps: { title: string; text: string; icon: IconName }[] = [
+  {
+    title: 'Выбираете поставщика и товары в каталоге',
+    text: 'Фильтры по категории, региону и городу, сравнение поставщиков бок о бок.',
+    icon: 'search',
+  },
+  {
+    title: 'Оформляете заказ и отслеживаете статусы',
+    text: 'Корзина собирает заказы сразу по нескольким поставщикам, статус виден в кабинете.',
+    icon: 'truck',
+  },
+  {
+    title: 'Получаете документы и аналитику в одном месте',
+    text: 'Документы по заказам и ключевые показатели закупок — без таблиц и переписки.',
+    icon: 'file-text',
+  },
 ]
 
 const advantages = [
@@ -21,578 +41,605 @@ const advantages = [
   'Чат, документы и уведомления доступны из одного интерфейса',
 ]
 
-const pad = (n: number) => String(n).padStart(2, '0')
+const audiences: { title: string; icon: IconName; points: string[]; action: string; role: 'buyer' | 'supplier' }[] = [
+  {
+    title: 'Ресторанам и кафе',
+    icon: 'store',
+    role: 'buyer',
+    action: 'Я покупатель',
+    points: [
+      'Каталог поставщиков с фильтрами и сравнением',
+      'Корзина и шаблоны для регулярных закупок',
+      'Статусы заказов, документы и аналитика',
+    ],
+  },
+  {
+    title: 'Поставщикам продуктов',
+    icon: 'package',
+    role: 'supplier',
+    action: 'Я поставщик',
+    points: [
+      'Карточки товаров с ценами и остатками',
+      'Входящие заказы: принять или отклонить в один клик',
+      'Чат с покупателями прямо в кабинете',
+    ],
+  },
+]
+
+/* отзывы о платформе — из БД */
+interface PlatformReview {
+  id: number
+  author_name: string
+  author_position: string | null
+  company_name: string | null
+  rating: number
+  comment: string
+  created_at: string
+}
+
+const reviews = ref<PlatformReview[]>([])
+const reviewsTotal = ref(0)
+const reviewsAverage = ref<number | null>(null)
+
+onMounted(async () => {
+  try {
+    const { data } = await api.get('/platform-reviews')
+    reviews.value = data.items.slice(0, 3)
+    reviewsTotal.value = data.total
+    reviewsAverage.value = data.average_rating
+  } catch {
+    // блок отзывов необязательный: при ошибке просто не показываем его
+  }
+})
 
 const goRegisterBuyer = () => router.push({ path: '/auth', query: { mode: 'register', role: 'buyer' } })
 const goRegisterSupplier = () => router.push({ path: '/auth', query: { mode: 'register', role: 'supplier' } })
 const goCatalog = () => router.push('/catalog')
+const goAudience = (role: 'buyer' | 'supplier') => (role === 'buyer' ? goRegisterBuyer() : goRegisterSupplier())
 </script>
 
 <template>
-  <main class="home-page">
+  <div class="home">
     <!-- ===== HERO ===== -->
-    <section class="hero-block">
-      <div class="hero">
-        <img :src="HeroImage" alt="" class="hero-bg" aria-hidden="true" />
-        <div class="hero-overlay"></div>
+    <section class="hero">
+      <div class="hero__copy">
+        <p class="hero__eyebrow">
+          <AppIcon name="leaf" :size="14" :stroke-width="2.4" />
+          B2B-платформа для ресторанов и поставщиков
+        </p>
+        <h1 class="hero__title">Поставщики и&nbsp;рестораны находят друг друга <span>быстрее</span></h1>
+        <p class="hero__lead">
+          Каталог поставщиков, заказы, документы и переписка — в одном рабочем пространстве для закупок.
+        </p>
 
-        <span class="corner corner--tl" aria-hidden="true"></span>
-        <span class="corner corner--tr" aria-hidden="true"></span>
-        <span class="corner corner--bl" aria-hidden="true"></span>
-        <span class="corner corner--br" aria-hidden="true"></span>
-
-        <div class="hero-copy">
-          <p class="eyebrow"><span class="eyebrow-mark"></span>SavorLink</p>
-          <h1>Поставщики и&nbsp;рестораны находят друг друга <em>быстрее</em></h1>
+        <div class="hero__actions">
+          <template v-if="isGuest">
+            <AppButton size="lg" icon-right="arrow-right" @click="goRegisterBuyer">Я покупатель</AppButton>
+            <AppButton size="lg" variant="secondary" @click="goRegisterSupplier">Я поставщик</AppButton>
+          </template>
+          <template v-else>
+            <AppButton size="lg" icon-right="arrow-right" to="/cabinet/profile">Открыть кабинет</AppButton>
+            <AppButton v-if="isSupplier" size="lg" variant="secondary" to="/cabinet/my-products">Мои товары</AppButton>
+          </template>
+          <AppButton size="lg" variant="ghost" icon="store" @click="goCatalog">Смотреть каталог</AppButton>
         </div>
-
-        <p class="hero-side" aria-hidden="true">Поставщики — Рестораны</p>
       </div>
 
-      <div class="action-bar">
-        <p class="action-bar__label">Начать работу</p>
-
-        <div class="hero-actions">
-          <button type="button" class="primary-btn" @click="goRegisterBuyer">Я покупатель</button>
-          <button type="button" class="secondary-btn" @click="goRegisterSupplier">Я поставщик</button>
-        </div>
-
-        <button type="button" class="catalog-link" @click="goCatalog">
-          Смотреть каталог <span class="arrow" aria-hidden="true">→</span>
-        </button>
+      <div class="hero__media">
+        <img :src="HeroImage" alt="Свежие овощи, зелень и фрукты" class="hero__img" />
       </div>
     </section>
 
     <!-- ===== КАК ЭТО РАБОТАЕТ ===== -->
-    <section class="section">
-      <header class="section-head">
-        <div>
-          <p class="section-index">01 / Процесс</p>
-          <h2>Как это работает</h2>
-        </div>
-        <p class="section-lead">
+    <section class="section" aria-labelledby="how-title">
+      <div class="section__head">
+        <p class="ui-eyebrow">Как это работает</p>
+        <h2 id="how-title" class="section__title">Закупка в три шага</h2>
+        <p class="section__lead">
           Покупка и работа с поставщиками проходят в несколько простых шагов без лишних переходов и путаницы.
         </p>
-      </header>
+      </div>
 
-      <ol class="steps-grid">
-        <li v-for="(step, index) in steps" :key="step.title" class="step-card">
-          <div class="step-top">
-            <span class="step-num">{{ pad(index + 1) }}</span>
-            <span class="step-icon-wrap">
-              <img :src="step.icon" alt="" aria-hidden="true" class="step-icon" />
-            </span>
+      <ol class="steps">
+        <li v-for="(step, index) in steps" :key="step.title" class="step ui-card">
+          <div class="step__top">
+            <span class="step__icon"><AppIcon :name="step.icon" :size="22" /></span>
+            <span class="step__num">0{{ index + 1 }}</span>
           </div>
-          <h3>{{ step.title }}</h3>
+          <h3 class="step__title">{{ step.title }}</h3>
+          <p class="step__text">{{ step.text }}</p>
         </li>
       </ol>
     </section>
 
-    <!-- ===== ПОЧЕМУ ЭТО УДОБНО ===== -->
-    <section class="section why">
-      <div class="why-aside">
-        <p class="section-index section-index--light">02 / Преимущества</p>
-        <h2>Почему это удобно</h2>
+    <!-- ===== ДЛЯ КОГО ===== -->
+    <section class="section" aria-labelledby="who-title">
+      <div class="section__head">
+        <p class="ui-eyebrow">Для кого</p>
+        <h2 id="who-title" class="section__title">Удобно обеим сторонам сделки</h2>
       </div>
 
-      <ul class="why-list">
-        <li v-for="(item, index) in advantages" :key="item" class="why-item">
-          <span class="why-num">/{{ pad(index + 1) }}</span>
-          <p>{{ item }}</p>
+      <div class="audiences">
+        <article v-for="item in audiences" :key="item.title" class="audience" :class="`audience--${item.role}`">
+          <span class="audience__icon"><AppIcon :name="item.icon" :size="22" /></span>
+          <h3 class="audience__title">{{ item.title }}</h3>
+          <ul class="audience__list">
+            <li v-for="point in item.points" :key="point">
+              <AppIcon name="check" :size="16" :stroke-width="2.6" />
+              <span>{{ point }}</span>
+            </li>
+          </ul>
+          <AppButton
+            v-if="isGuest"
+            :variant="item.role === 'buyer' ? 'accent' : 'secondary'"
+            icon-right="arrow-right"
+            class="audience__cta"
+            @click="goAudience(item.role)"
+          >
+            {{ item.action }}
+          </AppButton>
+        </article>
+      </div>
+    </section>
+
+    <!-- ===== ПОЧЕМУ ЭТО УДОБНО ===== -->
+    <section class="why ui-card" aria-labelledby="why-title">
+      <div class="why__head">
+        <p class="ui-eyebrow">Преимущества</p>
+        <h2 id="why-title" class="section__title">Почему это удобно</h2>
+      </div>
+      <ul class="why__list">
+        <li v-for="item in advantages" :key="item" class="why__item">
+          <span class="why__check"><AppIcon name="check" :size="16" :stroke-width="2.6" /></span>
+          <span>{{ item }}</span>
         </li>
       </ul>
     </section>
-  </main>
+
+    <!-- ===== ОТЗЫВЫ (из БД) ===== -->
+    <section v-if="reviews.length" class="section" aria-labelledby="reviews-title">
+      <div class="section__head section__head--row">
+        <div>
+          <p class="ui-eyebrow">Отзывы</p>
+          <h2 id="reviews-title" class="section__title">Что говорят о SavorLink</h2>
+        </div>
+        <div class="reviews-summary">
+          <RatingStars v-if="reviewsAverage !== null" :value="reviewsAverage" show-value />
+          <span class="ui-muted">
+            {{ reviewsTotal }} {{ pluralize(reviewsTotal, ['отзыв', 'отзыва', 'отзывов']) }}
+          </span>
+          <AppButton to="/reviews" variant="ghost" size="sm" icon-right="arrow-right">Все отзывы</AppButton>
+        </div>
+      </div>
+
+      <ul class="reviews">
+        <li v-for="review in reviews" :key="review.id" class="review ui-card">
+          <RatingStars :value="review.rating" :size="14" />
+          <p class="review__text">«{{ review.comment }}»</p>
+          <div class="review__author">
+            <AppAvatar :name="review.author_name" :size="36" tone="accent" />
+            <div class="review__meta">
+              <p class="review__name">{{ review.author_name }}</p>
+              <p class="review__company">
+                {{ [review.author_position, review.company_name].filter(Boolean).join(' · ') }}
+              </p>
+            </div>
+            <time class="review__date" :datetime="review.created_at">{{ formatDate(review.created_at, 'short') }}</time>
+          </div>
+        </li>
+      </ul>
+    </section>
+
+    <!-- ===== CTA ===== -->
+    <section v-if="isGuest" class="cta" aria-labelledby="cta-title">
+      <div>
+        <h2 id="cta-title" class="cta__title">Начните работу с SavorLink</h2>
+        <p class="cta__text">Регистрация займёт пару минут — выберите роль и подключите своё предприятие.</p>
+      </div>
+      <div class="cta__actions">
+        <AppButton variant="accent" size="lg" @click="goRegisterBuyer">Я покупатель</AppButton>
+        <AppButton variant="secondary" size="lg" @click="goRegisterSupplier">Я поставщик</AppButton>
+      </div>
+    </section>
+  </div>
 </template>
 
 <style scoped>
-.home-page {
-  --ink: var(--sl-ink);
-  --forest: var(--sl-forest);
-  --leaf: var(--sl-leaf);
-  --lime: var(--sl-lime);
-  --paper: var(--sl-paper);
-  --line: var(--sl-line);
-  --display: var(--sl-display);
-
+.home {
   display: grid;
-  gap: 1.25rem;
-  padding-bottom: 2rem;
-  color: var(--ink);
-}
-
-h1,
-h2,
-h3 {
-  margin: 0;
+  gap: clamp(3rem, 7vw, 5.5rem);
 }
 
 /* ===== HERO ===== */
-.hero-block {
-  display: grid;
-}
-
 .hero {
-  position: relative;
-  min-height: min(76vh, 720px);
-  overflow: hidden;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
   align-items: center;
-  padding: clamp(1.75rem, 6vw, 5rem);
-  padding-bottom: clamp(6rem, 10vw, 8rem);
-  background: var(--ink);
+  gap: clamp(1.5rem, 4vw, 3.5rem);
+  padding-top: clamp(0.5rem, 2vw, 1.5rem);
 }
 
-.hero-bg,
-.hero-overlay {
-  position: absolute;
-  inset: 0;
+.hero__copy {
+  display: grid;
+  gap: 1.25rem;
+  justify-items: start;
 }
 
-.hero-bg {
+.hero__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.8rem 0.35rem 0.65rem;
+  border: 1px solid var(--c-accent-200);
+  border-radius: var(--r-full);
+  background: var(--c-accent-50);
+  color: var(--c-accent-700);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+}
+
+.hero__title {
+  font-size: var(--fs-display);
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+  color: var(--c-brand-900);
+}
+
+.hero__title span {
+  color: var(--c-accent-600);
+}
+
+.hero__lead {
+  max-width: 520px;
+  color: var(--c-text-2);
+  font-size: var(--fs-lg);
+  line-height: 1.6;
+}
+
+.hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.hero__media {
+  position: relative;
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  box-shadow: var(--sh-lg);
+  aspect-ratio: 5 / 4;
+  background: var(--c-brand-900);
+}
+
+.hero__img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transform: scale(1.04);
-  animation: hero-zoom 1.6s ease-out both;
-}
-
-.hero-overlay {
-  background:
-    linear-gradient(90deg, rgba(12, 22, 9, 0.9) 0%, rgba(12, 22, 9, 0.62) 48%, rgba(12, 22, 9, 0.2) 100%),
-    linear-gradient(0deg, rgba(12, 22, 9, 0.55), transparent 45%);
-}
-
-/* уголки-«кадрирование» */
-.corner {
-  position: absolute;
-  z-index: 1;
-  width: 26px;
-  height: 26px;
-  border: 0 solid var(--lime);
-  opacity: 0.85;
-}
-
-.corner--tl { top: 1.25rem; left: 1.25rem; border-top-width: 2px; border-left-width: 2px; }
-.corner--tr { top: 1.25rem; right: 1.25rem; border-top-width: 2px; border-right-width: 2px; }
-.corner--bl { bottom: 1.25rem; left: 1.25rem; border-bottom-width: 2px; border-left-width: 2px; }
-.corner--br { bottom: 1.25rem; right: 1.25rem; border-bottom-width: 2px; border-right-width: 2px; }
-
-.hero-copy {
-  position: relative;
-  z-index: 1;
-  max-width: 780px;
-  color: #fff;
-}
-
-.eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.65rem;
-  margin: 0 0 1.5rem;
-  padding: 0.4rem 0.8rem;
-  border: 1px solid rgba(198, 236, 154, 0.45);
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--lime);
-  animation: rise 0.7s ease-out both;
-}
-
-.eyebrow-mark {
-  width: 8px;
-  height: 8px;
-  background: var(--lime);
-}
-
-.hero-copy h1 {
-  font-family: var(--display);
-  font-weight: 600;
-  font-size: clamp(2rem, 4.8vw, 3.75rem);
-  line-height: 1.12;
-  letter-spacing: -0.01em;
-  animation: rise 0.8s 0.1s ease-out both;
-}
-
-.hero-copy em {
-  font-style: normal;
-  color: var(--lime);
-  background: linear-gradient(var(--lime), var(--lime)) left 92% / 100% 3px no-repeat;
-}
-
-.hero-side {
-  position: absolute;
-  z-index: 1;
-  right: 2.25rem;
-  top: 50%;
-  margin: 0;
-  transform: translateY(-50%) rotate(180deg);
-  writing-mode: vertical-rl;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.32em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.6);
-}
-
-/* ===== ПЛАШКА ДЕЙСТВИЙ ===== */
-.action-bar {
-  position: relative;
-  z-index: 2;
-  margin: -3.5rem clamp(1rem, 5vw, 4rem) 0;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 1.5rem;
-  padding: 1rem 1rem 1rem 1.5rem;
-  background: #fff;
-  border: 1px solid var(--line);
-  border-left: 4px solid var(--leaf);
-  box-shadow: 0 24px 48px rgba(20, 33, 15, 0.18);
-  animation: rise 0.8s 0.25s ease-out both;
-}
-
-.action-bar__label {
-  margin: 0;
-  font-size: 0.78rem;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--leaf);
-}
-
-.hero-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-}
-
-/* ===== КНОПКИ ===== */
-.primary-btn,
-.secondary-btn {
-  border-radius: 0;
-  padding: 0.95rem 1.5rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
-}
-
-.primary-btn {
-  background: var(--ink);
-  color: #fff;
-  border: 1px solid var(--ink);
-}
-
-.primary-btn:hover {
-  background: var(--leaf);
-  border-color: var(--leaf);
-}
-
-.secondary-btn {
-  background: transparent;
-  color: var(--ink);
-  border: 1px solid var(--ink);
-}
-
-.secondary-btn:hover {
-  background: var(--lime);
-  border-color: var(--lime);
-}
-
-.catalog-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.95rem 0.5rem;
-  background: none;
-  border: none;
-  border-bottom: 1px solid transparent;
-  font-weight: 700;
-  color: var(--ink);
-  cursor: pointer;
-  transition: border-color 0.2s ease;
-}
-
-.catalog-link .arrow {
-  transition: transform 0.2s ease;
-}
-
-.catalog-link:hover {
-  border-bottom-color: var(--ink);
-}
-
-.catalog-link:hover .arrow {
-  transform: translateX(4px);
-}
-
-.primary-btn:focus-visible,
-.secondary-btn:focus-visible,
-.catalog-link:focus-visible {
-  outline: 2px solid var(--leaf);
-  outline-offset: 3px;
 }
 
 /* ===== СЕКЦИИ ===== */
 .section {
-  background: var(--paper);
-  border: 1px solid var(--line);
-  padding: clamp(1.5rem, 4vw, 3.5rem);
-}
-
-.section-head {
   display: grid;
-  grid-template-columns: 1fr minmax(0, 420px);
-  align-items: end;
-  gap: 1.5rem 3rem;
-  padding-bottom: 2rem;
-  margin-bottom: 2.5rem;
-  border-bottom: 1px solid var(--line);
+  gap: 1.75rem;
 }
 
-.section-index {
-  margin: 0 0 0.9rem;
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--leaf);
+.section__head {
+  display: grid;
+  gap: 0.5rem;
+  max-width: 680px;
 }
 
-.section-index--light {
-  color: var(--lime);
+.section__head--row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  max-width: none;
 }
 
-.section h2 {
-  font-family: var(--display);
-  font-weight: 600;
-  font-size: clamp(1.6rem, 3.2vw, 2.5rem);
-  line-height: 1.15;
+.section__head--row > div:first-child {
+  display: grid;
+  gap: 0.5rem;
 }
 
-.section-lead {
-  margin: 0;
-  color: #4f5f48;
+.section__title {
+  font-size: var(--fs-3xl);
+  letter-spacing: -0.03em;
 }
 
-/* ===== ШАГИ ===== */
-.steps-grid {
-  list-style: none;
+.section__lead {
+  color: var(--c-muted);
+  font-size: var(--fs-lg);
+}
+
+/* шаги */
+.steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
   margin: 0;
   padding: 0;
+  list-style: none;
+}
+
+.step {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1px;
-  background: var(--line);
-  border: 1px solid var(--line);
+  align-content: start;
+  gap: 0.75rem;
+  padding: 1.5rem;
 }
 
-.step-card {
-  position: relative;
+.step__top {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   justify-content: space-between;
-  gap: 2.5rem;
-  min-height: 250px;
-  padding: 2rem 1.75rem;
-  background: #fff;
-  transition: background 0.25s ease;
+  margin-bottom: 0.5rem;
 }
 
-.step-card::before {
-  content: '';
-  position: absolute;
-  top: -1px;
-  left: 0;
-  width: 0;
-  height: 3px;
-  background: var(--lime);
-  transition: width 0.35s ease;
-}
-
-.step-card:hover {
-  background: var(--ink);
-}
-
-.step-card:hover::before {
-  width: 100%;
-}
-
-.step-top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-}
-
-.step-num {
-  font-family: var(--display);
-  font-size: 3rem;
-  font-weight: 700;
-  line-height: 1;
-  color: transparent;
-  -webkit-text-stroke: 1px var(--leaf);
-  transition: -webkit-text-stroke-color 0.25s ease;
-}
-
-.step-card:hover .step-num {
-  -webkit-text-stroke-color: var(--lime);
-}
-
-.step-icon-wrap {
-  width: 56px;
-  height: 56px;
+.step__icon {
   display: grid;
   place-items: center;
-  background: var(--paper);
-  border: 1px solid var(--line);
+  width: 48px;
+  height: 48px;
+  border-radius: var(--r-md);
+  background: var(--c-accent-50);
+  color: var(--c-accent-700);
 }
 
-.step-icon {
-  width: 30px;
-  height: 30px;
-  object-fit: contain;
+.step__num {
+  font-size: var(--fs-2xl);
+  font-weight: 800;
+  color: var(--c-border-strong);
+  font-variant-numeric: tabular-nums;
 }
 
-.step-card h3 {
-  max-width: 24ch;
-  font-size: 1.15rem;
-  font-weight: 700;
-  line-height: 1.35;
-  color: var(--ink);
-  transition: color 0.25s ease;
+.step__title {
+  font-size: var(--fs-lg);
 }
 
-.step-card:hover h3 {
+.step__text {
+  color: var(--c-muted);
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+}
+
+/* для кого */
+.audiences {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.audience {
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+  padding: clamp(1.5rem, 3vw, 2rem);
+  border-radius: var(--r-xl);
+}
+
+.audience--buyer {
+  background: var(--c-brand-800);
   color: #fff;
 }
 
-/* ===== ПОЧЕМУ ЭТО УДОБНО ===== */
+.audience--supplier {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+}
+
+.audience__icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--r-md);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--c-accent);
+}
+
+.audience--supplier .audience__icon {
+  background: var(--c-accent-50);
+  color: var(--c-accent-700);
+}
+
+.audience__title {
+  font-size: var(--fs-xl);
+  color: inherit;
+}
+
+.audience__list {
+  display: grid;
+  gap: 0.7rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.audience__list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+
+.audience__list .app-icon {
+  margin-top: 0.2rem;
+  color: var(--c-accent);
+}
+
+.audience--buyer .audience__list li {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.audience--supplier .audience__list .app-icon {
+  color: var(--c-accent-600);
+}
+
+.audience__cta {
+  justify-self: start;
+  margin-top: 0.5rem;
+}
+
+/* почему удобно */
 .why {
   display: grid;
-  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
-  padding: 0;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  align-items: center;
+  gap: 1.5rem 3rem;
+  padding: clamp(1.5rem, 4vw, 2.5rem);
 }
 
-.why-aside {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0;
-  padding: clamp(1.5rem, 4vw, 3.5rem);
-  color: #fff;
-  background:
-    repeating-linear-gradient(135deg, rgba(198, 236, 154, 0.05) 0 1px, transparent 1px 14px),
-    var(--forest);
-}
-
-.why-aside h2 {
-  color: #fff;
-}
-
-.why-list {
-  list-style: none;
-  margin: 0;
-  padding: clamp(1rem, 3vw, 2.5rem) clamp(1.5rem, 4vw, 3.5rem);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-
-.why-item {
+.why__head {
   display: grid;
-  grid-template-columns: 3.5rem 1fr;
-  align-items: baseline;
-  gap: 1rem;
-  padding: 1.5rem 0;
-  border-bottom: 1px solid var(--line);
-  transition: padding-left 0.25s ease;
+  gap: 0.5rem;
 }
 
-.why-item:last-child {
+.why__list {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.why__item {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--c-border);
+  font-weight: 600;
+}
+
+.why__item:last-child {
   border-bottom: none;
 }
 
-.why-item:hover {
-  padding-left: 0.5rem;
+.why__check {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--c-accent-100);
+  color: var(--c-brand-800);
 }
 
-.why-num {
-  font-family: var(--display);
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--leaf);
+/* отзывы */
+.reviews-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  font-size: var(--fs-sm);
 }
 
-.why-item p {
+.reviews {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
   margin: 0;
-  font-size: 1.08rem;
-  font-weight: 600;
-  line-height: 1.45;
+  padding: 0;
+  list-style: none;
 }
 
-/* ===== АНИМАЦИИ ===== */
-@keyframes rise {
-  from {
-    opacity: 0;
-    transform: translateY(14px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
+.review {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.5rem;
 }
 
-@keyframes hero-zoom {
-  from {
-    transform: scale(1.12);
-  }
-  to {
-    transform: scale(1.04);
-  }
+.review__text {
+  flex: 1;
+  color: var(--c-text-2);
+  line-height: 1.6;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .hero-bg,
-  .eyebrow,
-  .hero-copy h1,
-  .action-bar {
-    animation: none;
-  }
+.review__author {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--c-border);
+}
+
+.review__meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.review__name {
+  font-weight: 700;
+  font-size: var(--fs-sm);
+}
+
+.review__company {
+  color: var(--c-muted);
+  font-size: var(--fs-xs);
+}
+
+.review__date {
+  align-self: flex-start;
+  color: var(--c-muted);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+/* CTA */
+.cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: clamp(1.75rem, 4vw, 2.75rem);
+  border-radius: var(--r-xl);
+  background:
+    radial-gradient(120% 140% at 100% 0%, rgba(47, 184, 98, 0.22), transparent 55%),
+    var(--c-brand-900);
+  color: #fff;
+}
+
+.cta__title {
+  color: #fff;
+  font-size: var(--fs-3xl);
+}
+
+.cta__text {
+  margin-top: 0.4rem;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.cta__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
 }
 
 /* ===== АДАПТИВ ===== */
+@media (max-width: 1024px) {
+  .reviews {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 900px) {
   .hero {
-    min-height: 62vh;
-  }
-
-  .hero-side {
-    display: none;
-  }
-
-  .action-bar {
-    grid-template-columns: 1fr;
-    gap: 1rem;
-    margin-top: -2.5rem;
-  }
-
-  .catalog-link {
-    justify-self: start;
-    padding-inline: 0;
-  }
-
-  .section-head {
     grid-template-columns: 1fr;
   }
 
-  .steps-grid {
-    grid-template-columns: 1fr;
+  .hero__media {
+    aspect-ratio: 16 / 9;
+    order: -1;
   }
 
-  .step-card {
-    min-height: 0;
-    gap: 1.5rem;
+  .steps,
+  .audiences {
+    grid-template-columns: 1fr;
   }
 
   .why {
@@ -601,12 +648,13 @@ h3 {
 }
 
 @media (max-width: 520px) {
-  .action-bar {
-    margin-inline: 0.75rem;
+  .hero__actions > *,
+  .cta__actions > * {
+    flex: 1 1 100%;
   }
 
-  .hero-actions > button {
-    flex: 1 1 100%;
+  .review__author {
+    flex-wrap: wrap;
   }
 }
 </style>

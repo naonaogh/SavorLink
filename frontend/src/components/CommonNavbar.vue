@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import { useShopStore } from '@/stores/shopStore'
+import AppAvatar from '@/components/ui/AppAvatar.vue'
+import AppButton from '@/components/ui/AppButton.vue'
+import AppIcon from '@/components/ui/AppIcon.vue'
 
 const authStore = useAuthStore()
 const shopStore = useShopStore()
@@ -18,12 +21,42 @@ const cartCount = computed(() => shopStore.state.cartItems.length)
 const isGuest = computed(() => !authStore.token)
 const isSupplier = computed(() => authStore.user?.role === 'SUPPLIER')
 
+const ROLE_LABELS: Record<string, string> = {
+  BUYER: 'Покупатель',
+  SUPPLIER: 'Поставщик',
+  ADMIN: 'Администратор',
+}
+const accountName = computed(() => String(authStore.user?.email ?? 'Аккаунт'))
+const accountRole = computed(() => ROLE_LABELS[String(authStore.user?.role ?? '')] ?? '')
+
 const isActive = (path: string) => {
   if (path === '/cabinet') {
     return route.path.startsWith('/cabinet')
   }
 
   return route.path === path
+}
+
+const navLinks = computed(() => [
+  { to: '/', label: 'Главная' },
+  { to: '/catalog', label: 'Каталог' },
+  ...(isGuest.value
+    ? [
+        { to: '/features', label: 'Возможности' },
+        { to: '/reviews', label: 'Отзывы' },
+      ]
+    : [{ to: '/cabinet', label: 'Кабинет' }]),
+])
+
+/* мобильное меню */
+const menuOpen = ref(false)
+const closeMenu = () => {
+  menuOpen.value = false
+}
+watch(() => route.fullPath, closeMenu)
+
+const onKeydown = (event: KeyboardEvent) => {
+  if (event.key === 'Escape' && menuOpen.value) closeMenu()
 }
 
 const handleLogout = () => {
@@ -36,6 +69,7 @@ const handleLogout = () => {
 }
 
 onMounted(async () => {
+  window.addEventListener('keydown', onKeydown)
   if (!authStore.token) return
 
   await Promise.all([
@@ -44,244 +78,386 @@ onMounted(async () => {
     shopStore.fetchFavoriteSuppliers(),
   ])
 })
+
+onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 </script>
 
 <template>
-  <header class="common-header">
-    <nav class="common-nav">
-      <router-link to="/" class="logo">
-        <span class="logo-mark">S</span>
-        <span class="logo-text">SavorLink</span>
-      </router-link>
+  <header class="site-header">
+    <div class="site-header__inner ui-container">
+      <RouterLink to="/" class="logo" aria-label="SavorLink — на главную">
+        <span class="logo__mark"><AppIcon name="leaf" :size="18" :stroke-width="2.2" /></span>
+        <span class="logo__text">SavorLink</span>
+      </RouterLink>
 
-      <div class="nav-links">
-        <router-link to="/" class="nav-link" :class="{ active: isActive('/') }">Главная</router-link>
-        <router-link to="/catalog" class="nav-link" :class="{ active: isActive('/catalog') }">Каталог</router-link>
+      <nav class="main-nav" aria-label="Основная навигация">
+        <RouterLink
+          v-for="link in navLinks"
+          :key="link.to"
+          :to="link.to === '/cabinet' ? '/cabinet/profile' : link.to"
+          class="main-nav__link"
+          :class="{ 'is-active': isActive(link.to) }"
+          :aria-current="isActive(link.to) ? 'page' : undefined"
+        >
+          {{ link.label }}
+        </RouterLink>
+      </nav>
 
-        <template v-if="isGuest">
-          <router-link to="/features" class="nav-link" :class="{ active: isActive('/features') }">Возможности</router-link>
-          <router-link to="/reviews" class="nav-link" :class="{ active: isActive('/reviews') }">Отзывы</router-link>
-          <span class="nav-divider" aria-hidden="true"></span>
-          <router-link to="/auth" class="nav-link">Вход</router-link>
-          <router-link :to="{ path: '/auth', query: { mode: 'register' } }" class="nav-btn nav-btn--solid">
-            Регистрация
-          </router-link>
+      <div class="header-actions">
+        <template v-if="!isGuest && !isSupplier">
+          <RouterLink
+            to="/favorites"
+            class="icon-link"
+            :class="{ 'is-active': isActive('/favorites') }"
+            :aria-label="`Избранное${favoritesCount ? `: ${favoritesCount}` : ''}`"
+            title="Избранное"
+          >
+            <AppIcon name="heart" :size="20" />
+            <span v-if="favoritesCount > 0" class="icon-link__count" aria-hidden="true">{{ favoritesCount }}</span>
+          </RouterLink>
+          <RouterLink
+            to="/cart"
+            class="icon-link"
+            :class="{ 'is-active': isActive('/cart') }"
+            :aria-label="`Корзина${cartCount ? `: ${cartCount}` : ''}`"
+            title="Корзина"
+          >
+            <AppIcon name="cart" :size="20" />
+            <span v-if="cartCount > 0" class="icon-link__count" aria-hidden="true">{{ cartCount }}</span>
+          </RouterLink>
         </template>
 
-        <template v-else>
-          <router-link to="/cabinet/profile" class="nav-link" :class="{ active: isActive('/cabinet') }">Кабинет</router-link>
-          <router-link v-if="!isSupplier" to="/favorites" class="nav-link" :class="{ active: isActive('/favorites') }">
-            Избранное<span v-if="favoritesCount > 0" class="nav-count">{{ favoritesCount }}</span>
-          </router-link>
-          <router-link v-if="!isSupplier" to="/cart" class="nav-link" :class="{ active: isActive('/cart') }">
-            Корзина<span v-if="cartCount > 0" class="nav-count">{{ cartCount }}</span>
-          </router-link>
-          <span class="nav-divider" aria-hidden="true"></span>
-          <button type="button" class="nav-btn nav-btn--outline" @click="handleLogout">Выйти</button>
-        </template>
+        <div class="header-actions__desktop">
+          <template v-if="isGuest">
+            <AppButton to="/auth" variant="ghost" size="sm">Войти</AppButton>
+            <AppButton :to="{ path: '/auth', query: { mode: 'register' } }" variant="primary" size="sm">
+              Регистрация
+            </AppButton>
+          </template>
+
+          <template v-else>
+            <RouterLink to="/cabinet/profile" class="account" title="Личный кабинет">
+              <AppAvatar :name="accountName" :size="32" tone="accent" />
+              <span class="account__text">
+                <span class="account__name">{{ accountName }}</span>
+                <span v-if="accountRole" class="account__role">{{ accountRole }}</span>
+              </span>
+            </RouterLink>
+            <AppButton variant="ghost" size="sm" icon="log-out" icon-only label="Выйти" @click="handleLogout" />
+          </template>
+        </div>
+
+        <button
+          type="button"
+          class="burger"
+          :aria-expanded="menuOpen"
+          aria-controls="mobile-menu"
+          :aria-label="menuOpen ? 'Закрыть меню' : 'Открыть меню'"
+          @click="menuOpen = !menuOpen"
+        >
+          <AppIcon :name="menuOpen ? 'x' : 'menu'" :size="22" />
+        </button>
       </div>
-    </nav>
+    </div>
+
+    <!-- мобильное меню -->
+    <Transition name="menu">
+      <div v-if="menuOpen" id="mobile-menu" class="mobile-menu">
+        <div class="ui-container mobile-menu__inner">
+          <nav class="mobile-menu__nav" aria-label="Мобильная навигация">
+            <RouterLink
+              v-for="link in navLinks"
+              :key="link.to"
+              :to="link.to === '/cabinet' ? '/cabinet/profile' : link.to"
+              class="mobile-menu__link"
+              :class="{ 'is-active': isActive(link.to) }"
+            >
+              {{ link.label }}
+              <AppIcon name="chevron-right" :size="18" />
+            </RouterLink>
+          </nav>
+
+          <div v-if="isGuest" class="mobile-menu__actions">
+            <AppButton to="/auth" variant="secondary" block>Войти</AppButton>
+            <AppButton :to="{ path: '/auth', query: { mode: 'register' } }" variant="primary" block>
+              Регистрация
+            </AppButton>
+          </div>
+
+          <div v-else class="mobile-menu__account">
+            <div class="mobile-menu__user">
+              <AppAvatar :name="accountName" :size="40" tone="accent" />
+              <div class="account__text">
+                <span class="account__name">{{ accountName }}</span>
+                <span v-if="accountRole" class="account__role">{{ accountRole }}</span>
+              </div>
+            </div>
+            <AppButton variant="secondary" icon="log-out" block @click="handleLogout">Выйти</AppButton>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </header>
+  <div v-if="menuOpen" class="mobile-menu__scrim" aria-hidden="true" @click="closeMenu"></div>
 </template>
 
 <style scoped>
-.common-header {
-  width: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 1rem 1rem 0;
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(246, 244, 239, 0.88);
+  border-bottom: 1px solid var(--c-border);
+  backdrop-filter: saturate(1.4) blur(12px);
 }
 
-.common-nav {
-  position: relative;
+.site-header__inner {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem 2rem;
-  padding: 0.75rem 0.75rem 0.75rem 1rem;
-  background: var(--sl-paper);
-  border: 1px solid var(--sl-line);
-  border-bottom: 2px solid var(--sl-ink);
+  gap: 1.5rem;
+  height: var(--header-h);
 }
 
-/* ЛОГО */
+/* логотип */
 .logo {
   display: inline-flex;
   align-items: center;
-  gap: 0.7rem;
-  white-space: nowrap;
+  gap: 0.6rem;
+  flex: 0 0 auto;
+  border-radius: var(--r-sm);
 }
 
-.logo-mark {
-  width: 2.25rem;
-  height: 2.25rem;
+.logo__mark {
   display: grid;
   place-items: center;
-  background: var(--sl-ink);
-  color: var(--sl-lime);
-  font-family: var(--sl-display);
-  font-weight: 700;
-  font-size: 1rem;
-  transition: background 0.2s ease, color 0.2s ease;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--c-brand-800);
+  color: var(--c-accent);
 }
 
-.logo:hover .logo-mark {
-  background: var(--sl-lime);
-  color: var(--sl-ink);
+.logo__text {
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--c-brand-900);
 }
 
-.logo-text {
-  font-family: var(--sl-display);
-  font-size: 1rem;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  color: var(--sl-ink);
-}
-
-/* ССЫЛКИ */
-.nav-links {
+/* навигация */
+.main-nav {
   display: flex;
   align-items: center;
   gap: 0.25rem;
-  flex-wrap: wrap;
 }
 
-.nav-link {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  padding: 0.6rem 0.8rem;
-  font-size: 0.92rem;
+.main-nav__link {
+  padding: 0.5rem 0.8rem;
+  border-radius: var(--r-sm);
+  color: var(--c-text-2);
+  font-size: var(--fs-sm);
   font-weight: 600;
-  color: #4a5a42;
-  white-space: nowrap;
-  transition: color 0.2s ease;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
 }
 
-.nav-link::after {
-  content: '';
-  position: absolute;
-  left: 0.8rem;
-  right: 0.8rem;
-  bottom: 0.2rem;
-  height: 2px;
-  background: var(--sl-leaf);
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 0.25s ease;
+.main-nav__link:hover {
+  background: rgba(23, 32, 27, 0.05);
+  color: var(--c-text);
 }
 
-.nav-link:hover {
-  color: var(--sl-ink);
+.main-nav__link.is-active {
+  background: var(--c-surface);
+  color: var(--c-brand-800);
+  box-shadow: var(--sh-xs), inset 0 0 0 1px var(--c-border);
 }
 
-.nav-link:hover::after {
-  transform: scaleX(1);
-}
-
-.nav-link.active {
-  color: var(--sl-ink);
-}
-
-.nav-link.active::after {
-  transform: scaleX(1);
-  background: var(--sl-ink);
-}
-
-.nav-count {
-  min-width: 1.35rem;
-  height: 1.35rem;
-  padding: 0 0.3rem;
-  display: inline-grid;
-  place-items: center;
-  background: var(--sl-lime);
-  color: var(--sl-ink);
-  font-size: 0.72rem;
-  font-weight: 800;
-}
-
-.nav-divider {
-  width: 1px;
-  height: 1.5rem;
-  margin: 0 0.5rem;
-  background: var(--sl-line);
-}
-
-/* КНОПКИ */
-.nav-btn {
-  display: inline-flex;
+/* правая часть */
+.header-actions {
+  display: flex;
   align-items: center;
-  padding: 0.65rem 1.15rem;
-  border-radius: 0;
-  font-size: 0.9rem;
-  font-weight: 700;
+  gap: 0.35rem;
+  margin-left: auto;
+}
+
+.header-actions__desktop {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: 0.35rem;
+}
+
+.icon-link {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-sm);
+  color: var(--c-text-2);
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+
+.icon-link:hover,
+.icon-link.is-active {
+  background: rgba(23, 32, 27, 0.06);
+  color: var(--c-brand-800);
+}
+
+.icon-link__count {
+  position: absolute;
+  top: 3px;
+  right: 1px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border: 2px solid var(--c-bg);
+  border-radius: var(--r-full);
+  background: var(--c-accent);
+  color: var(--c-brand-950);
+  font-size: 0.625rem;
+  font-weight: 800;
+  line-height: 14px;
+  text-align: center;
+}
+
+.account {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: 240px;
+  padding: 0.25rem 0.6rem 0.25rem 0.25rem;
+  border-radius: var(--r-md);
+  transition: background var(--dur) var(--ease);
+}
+
+.account:hover {
+  background: rgba(23, 32, 27, 0.05);
+}
+
+.account__text {
+  display: grid;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.account__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
-  cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--c-text);
 }
 
-.nav-btn--solid {
-  background: var(--sl-ink);
-  color: #fff;
-  border: 1px solid var(--sl-ink);
+.account__role {
+  font-size: var(--fs-xs);
+  color: var(--c-muted);
 }
 
-.nav-btn--solid:hover {
-  background: var(--sl-leaf);
-  border-color: var(--sl-leaf);
+.burger {
+  display: none;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-sm);
+  background: var(--c-surface);
+  color: var(--c-text);
 }
 
-.nav-btn--outline {
-  background: transparent;
-  color: var(--sl-ink);
-  border: 1px solid var(--sl-ink);
+/* мобильное меню */
+.mobile-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  max-height: calc(100dvh - var(--header-h));
+  overflow-y: auto;
+  border-bottom: 1px solid var(--c-border);
+  background: var(--c-surface);
+  box-shadow: var(--sh-lg);
 }
 
-.nav-btn--outline:hover {
-  background: var(--sl-ink);
-  color: #fff;
+.mobile-menu__inner {
+  display: grid;
+  gap: 1rem;
+  padding-block: 1rem 1.25rem;
 }
 
-.nav-link:focus-visible,
-.nav-btn:focus-visible,
-.logo:focus-visible {
-  outline: 2px solid var(--sl-leaf);
-  outline-offset: 2px;
+.mobile-menu__nav {
+  display: grid;
 }
 
-/* АДАПТИВ */
+.mobile-menu__link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 0.25rem;
+  border-bottom: 1px solid var(--c-border);
+  font-weight: 700;
+  color: var(--c-text);
+}
+
+.mobile-menu__link.is-active {
+  color: var(--c-accent-700);
+}
+
+.mobile-menu__actions,
+.mobile-menu__account {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.mobile-menu__user {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.25rem 0 0.5rem;
+}
+
+.mobile-menu__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgba(11, 31, 23, 0.3);
+}
+
+.menu-enter-active,
+.menu-leave-active {
+  transition: opacity 0.18s var(--ease), transform 0.18s var(--ease);
+}
+
+.menu-enter-from,
+.menu-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
 @media (max-width: 1024px) {
-  .common-nav {
-    align-items: flex-start;
-    flex-direction: column;
+  .account__text {
+    display: none;
   }
 
-  .nav-links {
-    margin-left: -0.8rem;
+  .account {
+    padding-right: 0.25rem;
   }
 }
 
-@media (max-width: 768px) {
-  .common-header {
-    padding: 0.75rem 0.75rem 0;
+@media (max-width: 860px) {
+  .main-nav,
+  .header-actions__desktop {
+    display: none;
   }
 
-  .common-nav {
-    padding: 0.75rem;
+  .burger {
+    display: grid;
   }
+}
 
-  .nav-link {
-    font-size: 0.85rem;
-    padding: 0.5rem 0.65rem;
-  }
-
-  .nav-link::after {
-    left: 0.65rem;
-    right: 0.65rem;
-  }
-
-  .nav-divider {
+@media (min-width: 861px) {
+  .mobile-menu,
+  .mobile-menu__scrim {
     display: none;
   }
 }

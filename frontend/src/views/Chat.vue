@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/services/apiClient'
 import { useAuthStore } from '@/stores/authStore'
+import { AppAvatar, AppButton, AppIcon, EmptyState, ErrorState, LoadingState, PageHeader } from '@/components/ui'
+import { formatDate, pluralize } from '@/utils/format'
 
 type ChatListItem = {
   id: number
@@ -123,13 +125,86 @@ const createChat = async (userId: number) => {
   }
 }
 
-const formatDate = (value: string) =>
-  new Date(value).toLocaleString('ru-RU', {
-    day: '2-digit',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+/* ── UI-состояние ──────────────────────────────── */
+/** На узких экранах видна одна панель: список или диалог */
+const showConversation = ref(false)
+const initialLoaded = ref(false)
+const chatQuery = ref('')
+const messagesRef = ref<HTMLElement | null>(null)
+
+const chatTitle = (chat: ChatListItem | ChatItem) => otherUser(chat)?.email || `Чат #${chat.id}`
+
+const filteredChats = computed(() => {
+  const q = chatQuery.value.trim().toLowerCase()
+  if (!q) return chats.value
+  return chats.value.filter((chat) =>
+    [chatTitle(chat), chat.last_message?.content].some((v) => (v ?? '').toLowerCase().includes(q)),
+  )
+})
+
+const dayKey = (value: string) => {
+  const d = new Date(value)
+  return Number.isNaN(d.getTime()) ? '' : d.toDateString()
+}
+
+const dayLabel = (value: string) => {
+  const key = dayKey(value)
+  if (!key) return '—'
+  const today = new Date()
+  const yesterday = new Date()
+  yesterday.setDate(today.getDate() - 1)
+  if (key === today.toDateString()) return 'Сегодня'
+  if (key === yesterday.toDateString()) return 'Вчера'
+  return formatDate(value, 'long')
+}
+
+/** Время в списке диалогов: сегодня — часы, иначе дата */
+const listTime = (value: string | undefined) => {
+  if (!value) return ''
+  return dayKey(value) === new Date().toDateString() ? formatDate(value, 'time', '') : formatDate(value, 'short', '')
+}
+
+const messageGroups = computed(() => {
+  const groups: { key: string; label: string; date: string; messages: MessageItem[] }[] = []
+  for (const message of activeChat.value?.messages ?? []) {
+    const key = dayKey(message.created_at)
+    const last = groups[groups.length - 1]
+    if (last && last.key === key) {
+      last.messages.push(message)
+    } else {
+      groups.push({ key, label: dayLabel(message.created_at), date: message.created_at, messages: [message] })
+    }
+  }
+  return groups
+})
+
+const messageCount = computed(() => activeChat.value?.messages.length ?? 0)
+
+const selectChat = (chatId: number) => {
+  showConversation.value = true
+  if (activeChat.value?.id !== chatId) openChat(chatId)
+}
+
+const backToList = () => {
+  showConversation.value = false
+}
+
+const onComposerKeydown = (event: KeyboardEvent) => {
+  if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return
+  event.preventDefault()
+  sendMessage()
+}
+
+const scrollToBottom = async () => {
+  await nextTick()
+  const el = messagesRef.value
+  if (el) el.scrollTop = el.scrollHeight
+}
+
+watch(
+  () => [activeChat.value?.id, messageCount.value],
+  () => scrollToBottom(),
+)
 
 onMounted(async () => {
   if (!authStore.token) {
@@ -138,10 +213,12 @@ onMounted(async () => {
   }
 
   await loadChats()
+  initialLoaded.value = true
 
   if (route.query.userId) {
     const userId = Number(route.query.userId)
     if (userId) {
+      showConversation.value = true
       const existingChat = chats.value.find(c => c.user1_id === userId || c.user2_id === userId)
       if (existingChat) {
         await openChat(existingChat.id)
@@ -155,384 +232,513 @@ onMounted(async () => {
 </script>
 
 <template>
-  <main class="chat-page">
-    <section class="hero">
-      <div>
-        <p class="eyebrow">Чат</p>
-        <h1>Диалоги с контрагентами</h1>
-        <p class="hero-lead">Выберите чат из списка или перейдите в чат со страницы поставщика.</p>
-      </div>
-    </section>
+  <div class="chat-page">
+    <PageHeader
+      eyebrow="Сообщения"
+      title="Диалоги с контрагентами"
+      description="Выберите чат из списка или перейдите в чат со страницы поставщика."
+    />
 
-    <div v-if="error" class="error-box">{{ error }}</div>
+    <div v-if="error && chats.length > 0" class="chat-alert" role="alert">
+      <AppIcon name="alert-circle" :size="18" />
+      <span>{{ error }}</span>
+    </div>
 
-    <div class="chat-layout">
-      <aside class="sidebar">
-        <h2>Чаты</h2>
-        <div v-if="loading" class="state-box">Загрузка...</div>
-        <button
-          v-for="chat in chats"
-          :key="chat.id"
-          class="chat-item"
-          :class="{ active: activeChat?.id === chat.id }"
-          @click="openChat(chat.id)"
-        >
-          <strong>{{ otherUser(chat)?.email || `Чат #${chat.id}` }}</strong>
-          <span>{{ chat.last_message?.content || 'Нет сообщений' }}</span>
-        </button>
+    <LoadingState v-if="!initialLoaded && loading" variant="skeleton" :rows="5" label="Загружаем диалоги…" />
+
+    <ErrorState
+      v-else-if="error && chats.length === 0"
+      :message="error"
+      :retrying="loading"
+      @retry="loadChats"
+    />
+
+    <div v-else-if="chats.length === 0" class="ui-card ui-card--pad">
+      <EmptyState
+        icon="message"
+        title="Диалогов пока нет"
+        :description="
+          authStore.user?.role === 'SUPPLIER'
+            ? 'Когда покупатель напишет вам со страницы каталога, диалог появится здесь.'
+            : 'Откройте карточку поставщика в каталоге и начните переписку — диалог появится здесь.'
+        "
+      >
+        <AppButton v-if="authStore.user?.role !== 'SUPPLIER'" to="/catalog" icon="store">Открыть каталог</AppButton>
+      </EmptyState>
+    </div>
+
+    <div v-else class="messenger ui-card" :class="{ 'is-conversation': showConversation }">
+      <!-- ===== СПИСОК ДИАЛОГОВ ===== -->
+      <aside class="dialogs" aria-label="Список диалогов">
+        <div class="dialogs__head">
+          <h2 class="dialogs__title">
+            Чаты <span class="dialogs__count ui-num">{{ chats.length }}</span>
+          </h2>
+          <div class="dialogs__search">
+            <AppIcon name="search" :size="16" class="dialogs__search-icon" />
+            <label for="chat-search" class="sr-only">Поиск по диалогам</label>
+            <input id="chat-search" v-model="chatQuery" type="search" placeholder="Поиск по диалогам" autocomplete="off" />
+          </div>
+        </div>
+
+        <ul v-if="filteredChats.length" class="dialogs__list">
+          <li v-for="chat in filteredChats" :key="chat.id">
+            <button
+              type="button"
+              class="dialog"
+              :class="{ 'is-active': activeChat?.id === chat.id }"
+              :aria-current="activeChat?.id === chat.id ? 'true' : undefined"
+              @click="selectChat(chat.id)"
+            >
+              <AppAvatar :name="otherUser(chat)?.email" :size="40" :tone="activeChat?.id === chat.id ? 'accent' : 'brand'" />
+              <span class="dialog__body">
+                <span class="dialog__top">
+                  <span class="dialog__name">{{ chatTitle(chat) }}</span>
+                  <time
+                    v-if="chat.last_message?.created_at"
+                    class="dialog__time ui-num"
+                    :datetime="chat.last_message.created_at"
+                  >
+                    {{ listTime(chat.last_message.created_at) }}
+                  </time>
+                </span>
+                <span class="dialog__preview" :class="{ 'is-empty': !chat.last_message?.content }">
+                  {{ chat.last_message?.content || 'Нет сообщений' }}
+                </span>
+              </span>
+            </button>
+          </li>
+        </ul>
+        <div v-else class="dialogs__empty">
+          <EmptyState compact icon="search" title="Ничего не найдено" description="Попробуйте изменить запрос.">
+            <AppButton variant="ghost" size="sm" @click="chatQuery = ''">Сбросить</AppButton>
+          </EmptyState>
+        </div>
       </aside>
 
-      <section class="conversation">
-        <div v-if="loadingChat" class="state-box">Открываем чат...</div>
-        <div v-else-if="!activeChat" class="state-box">Выберите чат слева.</div>
+      <!-- ===== ПЕРЕПИСКА ===== -->
+      <section class="conversation" aria-label="Переписка">
+        <div v-if="loadingChat && !activeChat" class="conversation__state">
+          <LoadingState label="Открываем чат…" />
+        </div>
+
+        <div v-else-if="!activeChat" class="conversation__state">
+          <EmptyState
+            icon="message"
+            title="Диалог не выбран"
+            description="Выберите чат из списка слева, чтобы увидеть переписку."
+          />
+        </div>
+
         <template v-else>
-          <header class="conversation-head">
-            <div>
-              <h2>{{ otherUser(activeChat)?.email || `Чат #${activeChat.id}` }}</h2>
-              <p>{{ activeChat.messages.length }} сообщений</p>
+          <header class="conversation__head">
+            <AppButton
+              class="conversation__back"
+              variant="ghost"
+              size="sm"
+              icon="arrow-left"
+              icon-only
+              label="К списку диалогов"
+              @click="backToList"
+            />
+            <AppAvatar :name="otherUser(activeChat)?.email" :size="40" tone="accent" />
+            <div class="conversation__who">
+              <h2 class="conversation__name">{{ chatTitle(activeChat) }}</h2>
+              <p class="conversation__meta">
+                <span class="ui-num">{{ messageCount }}</span>
+                {{ pluralize(messageCount, ['сообщение', 'сообщения', 'сообщений']) }}
+              </p>
             </div>
+            <span v-if="loadingChat" class="conversation__meta" role="status">Обновляем…</span>
           </header>
 
-          <div class="messages">
-            <article
-              v-for="message in activeChat.messages"
-              :key="message.id"
-              class="message"
-              :class="{ 'message--own': message.sender_id === me }"
-            >
-              <div class="message-head">
-                <strong>{{ message.sender?.email || `Пользователь #${message.sender_id}` }}</strong>
-                <time>{{ formatDate(message.created_at) }}</time>
-              </div>
-              <p>{{ message.content }}</p>
-            </article>
+          <div ref="messagesRef" class="messages" role="log" aria-live="polite" aria-label="Сообщения">
+            <div v-if="messageCount === 0" class="messages__empty">
+              <EmptyState compact icon="message" title="Сообщений пока нет" description="Напишите первое сообщение собеседнику." />
+            </div>
+
+            <section v-for="group in messageGroups" :key="group.key" class="day">
+              <p class="day__label">
+                <time :datetime="group.date">{{ group.label }}</time>
+              </p>
+              <article
+                v-for="message in group.messages"
+                :key="message.id"
+                class="bubble"
+                :class="{ 'bubble--own': message.sender_id === me }"
+              >
+                <span class="sr-only">
+                  {{ message.sender_id === me ? 'Вы' : message.sender?.email || `Пользователь #${message.sender_id}` }}:
+                </span>
+                <p class="bubble__text">{{ message.content }}</p>
+                <time class="bubble__time ui-num" :datetime="message.created_at">
+                  {{ formatDate(message.created_at, 'time') }}
+                </time>
+              </article>
+            </section>
           </div>
 
-          <div class="composer">
-            <textarea v-model="messageText" rows="3" placeholder="Введите сообщение"></textarea>
-            <button class="primary-btn" :disabled="sending" @click="sendMessage">
-              {{ sending ? 'Отправка...' : 'Отправить' }}
-            </button>
-          </div>
+          <form class="composer" @submit.prevent="sendMessage">
+            <label for="chat-message" class="sr-only">Сообщение</label>
+            <textarea
+              id="chat-message"
+              v-model="messageText"
+              class="composer__input"
+              rows="1"
+              placeholder="Введите сообщение"
+              aria-describedby="chat-message-hint"
+              @keydown="onComposerKeydown"
+            ></textarea>
+            <AppButton
+              type="submit"
+              icon="send"
+              icon-only
+              label="Отправить"
+              :loading="sending"
+              :disabled="!messageText.trim()"
+            />
+            <p id="chat-message-hint" class="composer__hint">Enter — отправить, Shift+Enter — новая строка</p>
+          </form>
         </template>
       </section>
     </div>
-  </main>
+  </div>
 </template>
 
 <style scoped>
 .chat-page {
   display: grid;
-  background: var(--sl-paper);
-  border: 1px solid var(--sl-line);
-  border-top: 3px solid var(--sl-ink);
-  color: var(--sl-ink);
-}
-
-/* ===== ШАПКА ===== */
-.hero {
-  padding: clamp(1.25rem, 3vw, 2rem);
-  border-bottom: 1px solid var(--sl-line);
-}
-
-.eyebrow {
-  margin: 0 0 0.6rem;
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--sl-leaf);
-}
-
-.hero h1 {
-  margin: 0;
-  font-size: clamp(1.5rem, 3vw, 2.2rem);
-  color: var(--sl-ink);
-}
-
-.hero-lead {
-  margin: 0.75rem 0 0;
-  max-width: 60ch;
-  color: var(--sl-muted);
-}
-
-.error-box {
-  margin: 1rem clamp(1.25rem, 3vw, 2rem) 0;
-  padding: 0.9rem 1rem;
-  color: #b3261e;
-  background: #fbeaea;
-  border: 1px solid rgba(179, 38, 30, 0.3);
-  font-weight: 600;
+  gap: 1.5rem;
+  min-width: 0;
 }
 
 /* ===== РАСКЛАДКА ===== */
-.chat-layout {
+.messenger {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
-  margin: clamp(1.25rem, 3vw, 2rem);
-  gap: 1px;
-  background: var(--sl-line);
-  border: 1px solid var(--sl-line);
+  grid-template-columns: 320px minmax(0, 1fr);
+  height: clamp(520px, calc(100vh - var(--header-h) - 12rem), 760px);
+  overflow: hidden;
 }
 
-/* ===== СПИСОК ЧАТОВ ===== */
-.sidebar {
+/* ===== СПИСОК ===== */
+.dialogs {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  background: #fff;
+  min-height: 0;
+  border-right: 1px solid var(--c-border);
+  background: var(--c-surface);
 }
 
-.sidebar h2 {
-  margin: 0;
-  padding: 1rem 1.25rem;
-  font-family: inherit;
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--sl-muted);
-  border-bottom: 1px solid var(--sl-line);
-}
-
-.chat-item {
-  position: relative;
+.dialogs__head {
   display: grid;
-  gap: 0.25rem;
-  width: 100%;
-  min-width: 0;
-  text-align: left;
-  padding: 0.9rem 1.25rem;
-  border: none;
-  border-bottom: 1px solid var(--sl-line);
-  border-radius: 0;
-  background: #fff;
-  color: var(--sl-ink);
-  cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-bottom: 1px solid var(--c-border);
 }
 
-.chat-item::before {
-  content: '';
+.dialogs__title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: var(--fs-lg);
+}
+
+.dialogs__count {
+  padding: 0.05rem 0.5rem;
+  border-radius: var(--r-full);
+  background: var(--c-surface-sunken);
+  color: var(--c-text-2);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.dialogs__search {
+  position: relative;
+}
+
+.dialogs__search-icon {
   position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--sl-leaf);
-  transform: scaleY(0);
-  transition: transform 0.2s ease;
+  top: 50%;
+  left: 0.8rem;
+  transform: translateY(-50%);
+  color: var(--c-muted);
+  pointer-events: none;
 }
 
-.chat-item:hover {
-  background: var(--sl-paper);
+.dialogs__search input {
+  min-height: 40px;
+  padding-left: 2.3rem;
+  font-size: var(--fs-sm);
 }
 
-.chat-item:hover::before {
-  transform: scaleY(1);
+.dialogs__list {
+  flex: 1;
+  margin: 0;
+  padding: 0.4rem;
+  overflow-y: auto;
+  list-style: none;
 }
 
-.chat-item strong {
+.dialogs__empty {
+  padding: 1rem;
+}
+
+.dialog {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.7rem 0.75rem;
+  border: none;
+  border-radius: var(--r-md);
+  background: transparent;
+  text-align: left;
+  transition: background var(--dur) var(--ease);
+}
+
+.dialog:hover {
+  background: var(--c-surface-2);
+}
+
+.dialog.is-active {
+  background: var(--c-brand-50);
+  box-shadow: inset 3px 0 0 var(--c-accent);
+}
+
+.dialog__body {
+  flex: 1;
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.dialog__top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.dialog__name {
   overflow: hidden;
+  font-weight: 700;
+  font-size: var(--fs-sm);
+  color: var(--c-text);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.chat-item span {
+.dialog__time {
+  flex-shrink: 0;
+  color: var(--c-muted);
+  font-size: var(--fs-xs);
+}
+
+.dialog__preview {
   overflow: hidden;
+  color: var(--c-text-2);
+  font-size: var(--fs-sm);
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--sl-muted);
-  font-size: 0.85rem;
 }
 
-.chat-item.active,
-.chat-item.active:hover {
-  background: var(--sl-ink);
-  color: #fff;
+.dialog__preview.is-empty {
+  color: var(--c-muted);
+  font-style: italic;
 }
 
-.chat-item.active::before {
-  transform: scaleY(1);
-  background: var(--sl-lime);
-}
-
-.chat-item.active span {
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.chat-item:focus-visible {
-  outline: 2px solid var(--sl-leaf);
-  outline-offset: -2px;
-}
-
-/* ===== ДИАЛОГ ===== */
+/* ===== ПЕРЕПИСКА ===== */
 .conversation {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  min-height: 320px;
-  background: #fff;
+  min-height: 0;
+  background: var(--c-surface-2);
 }
 
-.conversation-head {
-  padding: 1rem 1.25rem;
-  border-bottom: 1px solid var(--sl-line);
-}
-
-.conversation-head h2 {
-  margin: 0;
-  font-size: 1.05rem;
-  color: var(--sl-ink);
-  overflow-wrap: anywhere;
-}
-
-.conversation-head p {
-  margin: 0.3rem 0 0;
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--sl-muted);
-}
-
-.messages {
-  flex: 1;
+.chat-alert {
   display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  max-height: 520px;
-  overflow: auto;
-  padding: 1.25rem;
-  background: var(--sl-paper);
+  align-items: center;
+  border-radius: var(--r-md);
+  gap: 0.5rem;
+  padding: 0.7rem 1rem;
+  background: var(--c-danger-bg);
+  color: var(--c-danger-600);
+  font-size: var(--fs-sm);
+  font-weight: 600;
 }
 
-.message {
-  align-self: flex-start;
-  max-width: min(78%, 560px);
-  padding: 0.75rem 0.95rem;
-  background: #fff;
-  border: 1px solid var(--sl-line);
-  color: var(--sl-ink);
-}
-
-.message--own {
-  align-self: flex-end;
-  background: var(--sl-ink);
-  border-color: var(--sl-ink);
-  color: #fff;
-}
-
-.message-head {
-  display: flex;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.25rem 1rem;
-  margin-bottom: 0.35rem;
-  font-size: 0.78rem;
-  color: var(--sl-muted);
-}
-
-.message-head strong {
-  overflow-wrap: anywhere;
-}
-
-.message--own .message-head {
-  color: var(--sl-lime);
-}
-
-.message p {
-  margin: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.composer {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: stretch;
-  border-top: 1px solid var(--sl-line);
-}
-
-.composer textarea {
-  width: 100%;
-  min-width: 0;
-  resize: vertical;
-  border: none;
-  border-radius: 0;
-  padding: 0.9rem 1.25rem;
-  background: #fff;
-}
-
-.primary-btn {
-  border: 1px solid var(--sl-ink);
-  border-radius: 0;
-  padding: 0.7rem 1.4rem;
-  background: var(--sl-ink);
-  color: #fff;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
-}
-
-.primary-btn:hover {
-  background: var(--sl-leaf);
-  border-color: var(--sl-leaf);
-}
-
-.primary-btn:focus-visible {
-  outline: 2px solid var(--sl-leaf);
-  outline-offset: 2px;
-}
-
-.primary-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.state-box {
-  padding: 1rem 1.25rem;
-  color: var(--sl-muted);
-}
-
-.conversation > .state-box {
+.conversation__state {
   flex: 1;
   display: grid;
   place-items: center;
-  text-align: center;
-  background: var(--sl-paper);
+  padding: 1.5rem;
 }
 
-@media (max-width: 900px) {
-  .chat-layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .sidebar {
-    max-height: 260px;
-    overflow: auto;
-  }
+.conversation__head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1.25rem;
+  border-bottom: 1px solid var(--c-border);
+  background: var(--c-surface);
 }
 
-@media (max-width: 520px) {
-  .chat-layout {
-    margin: 1rem;
-  }
+.conversation__back {
+  display: none;
+}
 
-  .message {
-    max-width: 90%;
-  }
+.conversation__who {
+  flex: 1;
+  display: grid;
+  min-width: 0;
+}
 
-  .composer {
+.conversation__name {
+  overflow: hidden;
+  font-size: var(--fs-md);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation__meta {
+  color: var(--c-muted);
+  font-size: var(--fs-xs);
+}
+
+/* сообщения */
+.messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1rem clamp(0.85rem, 2.5vw, 1.5rem) 1.25rem;
+}
+
+.messages__empty {
+  display: grid;
+  place-items: center;
+  height: 100%;
+}
+
+.day {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.day + .day {
+  margin-top: 0.75rem;
+}
+
+.day__label {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  align-self: center;
+  margin: 0.25rem 0 0.5rem;
+  padding: 0.2rem 0.7rem;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-full);
+  background: var(--c-surface);
+  color: var(--c-muted);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+}
+
+.bubble {
+  align-self: flex-start;
+  max-width: min(75%, 560px);
+  padding: 0.55rem 0.85rem 0.4rem;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-lg) var(--r-lg) var(--r-lg) var(--r-xs);
+  background: var(--c-surface);
+  color: var(--c-text);
+  box-shadow: var(--sh-xs);
+}
+
+.bubble--own {
+  align-self: flex-end;
+  border-color: var(--c-brand-800);
+  border-radius: var(--r-lg) var(--r-lg) var(--r-xs) var(--r-lg);
+  background: var(--c-brand-800);
+  color: var(--c-surface);
+}
+
+.bubble__text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+
+.bubble__time {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--c-muted);
+  font-size: 0.6875rem;
+  text-align: right;
+}
+
+.bubble--own .bubble__time {
+  color: var(--c-brand-100);
+}
+
+/* поле ввода */
+.composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.35rem 0.6rem;
+  padding: 0.85rem 1rem 0.7rem;
+  border-top: 1px solid var(--c-border);
+  background: var(--c-surface);
+}
+
+.composer__input {
+  min-height: 44px;
+  max-height: 160px;
+  resize: none;
+  field-sizing: content;
+}
+
+.composer__hint {
+  grid-column: 1 / -1;
+  color: var(--c-muted);
+  font-size: var(--fs-xs);
+}
+
+/* ===== ОДНА ПАНЕЛЬ НА УЗКИХ ЭКРАНАХ ===== */
+@media (max-width: 860px) {
+  .messenger {
     grid-template-columns: minmax(0, 1fr);
+    height: calc(100dvh - var(--header-h) - 6rem);
+    min-height: 480px;
   }
 
-  .composer textarea {
-    border-bottom: 1px solid var(--sl-line);
+  .dialogs {
+    border-right: none;
   }
 
-  .composer .primary-btn {
-    width: 100%;
+  .messenger.is-conversation .dialogs,
+  .messenger:not(.is-conversation) .conversation {
+    display: none;
+  }
+
+  .conversation__back {
+    display: inline-flex;
+  }
+
+  .conversation__head {
+    padding: 0.7rem 0.75rem;
+  }
+
+  .bubble {
+    max-width: 85%;
+  }
+
+  .composer__hint {
+    display: none;
   }
 }
 </style>

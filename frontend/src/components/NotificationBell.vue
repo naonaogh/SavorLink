@@ -1,68 +1,71 @@
 <script setup lang="ts">
-import { NotificationIcon } from '@/assets/icons/png'
+import { computed } from 'vue'
+import { RouterLink } from 'vue-router'
+import AppIcon from '@/components/ui/AppIcon.vue'
 
-defineProps<{
+const props = defineProps<{
   count: number
 }>()
+
+const badge = computed(() => (props.count > 9 ? '9+' : String(props.count)))
+const ariaLabel = computed(() => `Уведомления: ${props.count}`)
 </script>
 
 <template>
-  <div class="bell-container" :class="{ 'has-unread': count > 0 }">
-    <img :src="NotificationIcon" alt="" class="bell-icon" aria-hidden="true" />
-    <div v-if="count > 0" class="badge">
-      {{ count > 9 ? '9+' : count }}
-    </div>
-  </div>
+  <RouterLink
+    to="/cabinet/notifications"
+    class="bell"
+    :class="{ 'bell--unread': count > 0 }"
+    :aria-label="ariaLabel"
+    title="Уведомления"
+  >
+    <AppIcon name="bell" :size="20" />
+    <span v-if="count > 0" class="bell__count ui-num" aria-hidden="true">{{ badge }}</span>
+  </RouterLink>
 </template>
 
 <style scoped>
-.bell-container {
+.bell {
   position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  width: 40px;
-  height: 40px;
-  border-radius: 0;
-  background: #fff;
-  border: 1px solid var(--sl-line);
-  color: var(--sl-ink);
-  transition: border-color 0.2s ease, background 0.2s ease;
-}
-
-.bell-container:hover {
-  border-color: var(--sl-ink);
-}
-
-.has-unread {
-  border-color: var(--sl-ink);
-}
-
-.bell-icon {
-  width: 18px;
-  height: 18px;
-  object-fit: contain;
-  /* цветную png-иконку приводим к монохрому, как в сайдбаре */
-  filter: grayscale(1) brightness(0.35);
-}
-
-.badge {
-  position: absolute;
-  top: -1px;
-  right: -1px;
-  transform: translate(45%, -45%);
-  min-width: 1.25rem;
-  height: 1.25rem;
-  padding: 0 0.3rem;
   display: inline-grid;
   place-items: center;
-  border-radius: 0;
-  background: var(--sl-lime);
-  color: var(--sl-ink);
-  border: 1px solid var(--sl-ink);
-  font-size: 0.68rem;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--r-sm);
+  background: var(--c-surface);
+  color: var(--c-text-2);
+  transition:
+    border-color var(--dur) var(--ease),
+    background var(--dur) var(--ease),
+    color var(--dur) var(--ease);
+}
+
+.bell:hover {
+  border-color: var(--c-muted);
+  background: var(--c-surface-2);
+  color: var(--c-brand-800);
+}
+
+.bell--unread {
+  color: var(--c-brand-800);
+}
+
+.bell__count {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border: 2px solid var(--c-bg);
+  border-radius: var(--r-full);
+  background: var(--c-accent);
+  color: var(--c-brand-950);
+  font-size: 0.625rem;
   font-weight: 800;
-  line-height: 1;
+  line-height: 16px;
+  text-align: center;
 }
 </style>

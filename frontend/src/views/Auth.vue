@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import HeroImage from '@/assets/images/home-hero.jpg'
 import api, { getApiErrorMessage } from '@/services/apiClient'
 import { useAuthStore } from '@/stores/authStore'
 import { useShopStore } from '@/stores/shopStore'
 import { AUTH_REQUIRED_REASON } from '@/composables/useRequireAuth'
+import { AppButton, AppIcon, AppTabs, ErrorState, FormField, type IconName, type TabItem } from '@/components/ui'
 
 const router = useRouter()
 const route = useRoute()
@@ -15,12 +17,12 @@ const mode = computed<'login' | 'register'>(() =>
   route.query.mode === 'register' ? 'register' : 'login'
 )
 
-/* ✅ СНАЧАЛА объявляем */
+/* Роль при регистрации: объявляем до watch */
 const regRole = ref<'BUYER' | 'SUPPLIER'>(
   route.query.role === 'supplier' ? 'SUPPLIER' : 'BUYER'
 )
 
-/* ✅ потом watch */
+/* Синхронизируем роль с адресом (?role=supplier) */
 watch(
   () => route.fullPath,
   () => {
@@ -70,6 +72,46 @@ const regError = ref('')
 const regLoading = ref(false)
 
 const openLogin = () => router.push(loginLink.value)
+
+/* Вкладки «Вход / Регистрация» и выбор роли — только UI */
+const modeTabs: TabItem<'login' | 'register'>[] = [
+  { value: 'login', label: 'Вход', icon: 'log-in' },
+  { value: 'register', label: 'Регистрация', icon: 'user-plus' },
+]
+const switchMode = (value: 'login' | 'register') => {
+  if (value === mode.value) return
+  if (value === 'login') openLogin()
+  else router.push(registerLink.value)
+}
+
+const roleTabs: TabItem<'BUYER' | 'SUPPLIER'>[] = [
+  { value: 'BUYER', label: 'Покупатель', icon: 'store' },
+  { value: 'SUPPLIER', label: 'Поставщик', icon: 'package' },
+]
+const roleHint = computed(() =>
+  regRole.value === 'SUPPLIER'
+    ? 'Размещайте товары с ценами и остатками, принимайте заказы и общайтесь с покупателями.'
+    : 'Находите поставщиков в каталоге, собирайте корзину и отслеживайте статусы заказов.',
+)
+
+/* Брендовая панель: те же шаги, что на главной */
+const steps: { title: string; text: string; icon: IconName }[] = [
+  {
+    title: 'Выбираете поставщика и товары в каталоге',
+    text: 'Фильтры по категории, региону и городу, сравнение поставщиков бок о бок.',
+    icon: 'search',
+  },
+  {
+    title: 'Оформляете заказ и отслеживаете статусы',
+    text: 'Корзина собирает заказы сразу по нескольким поставщикам, статус виден в кабинете.',
+    icon: 'truck',
+  },
+  {
+    title: 'Получаете документы и аналитику в одном месте',
+    text: 'Документы по заказам и ключевые показатели закупок — без таблиц и переписки.',
+    icon: 'file-text',
+  },
+]
 
 /* Вход + подгрузка корзины/избранного + возврат туда, откуда пришли */
 const signIn = async (email: string, password: string) => {
@@ -133,527 +175,504 @@ const submitRegister = async () => {
 </script>
 
 <template>
-  <div class="auth-page">
-    <aside class="auth-aside">
-      <span class="corner corner--tl" aria-hidden="true"></span>
-      <span class="corner corner--br" aria-hidden="true"></span>
+  <div class="auth">
+    <!-- ===== Брендовая панель ===== -->
+    <aside class="brand" :style="{ backgroundImage: `url(${HeroImage})` }">
+      <div class="brand__inner">
+        <p class="brand__logo">
+          <span class="brand__mark"><AppIcon name="leaf" :size="18" :stroke-width="2.2" /></span>
+          <span>SavorLink</span>
+        </p>
 
-      <p class="aside-eyebrow"><span class="aside-eyebrow-mark" aria-hidden="true"></span>SavorLink</p>
-      <p class="aside-title">Поставщики и&nbsp;рестораны находят друг друга <em>быстрее</em></p>
+        <div class="brand__copy">
+          <p class="brand__title">Поставщики и&nbsp;рестораны находят друг друга <span>быстрее</span></p>
+          <p class="brand__lead">
+            Каталог поставщиков, заказы, документы и переписка — в одном рабочем пространстве для закупок.
+          </p>
+        </div>
 
-      <ol class="aside-steps">
-        <li><span class="aside-num" aria-hidden="true">/01</span>Выбираете поставщика и товары в каталоге</li>
-        <li><span class="aside-num" aria-hidden="true">/02</span>Оформляете заказ и отслеживаете статусы</li>
-        <li><span class="aside-num" aria-hidden="true">/03</span>Получаете документы и аналитику в одном месте</li>
-      </ol>
+        <ol class="brand__steps">
+          <li v-for="(step, index) in steps" :key="step.title" class="brand__step">
+            <span class="brand__step-icon"><AppIcon :name="step.icon" :size="18" /></span>
+            <div>
+              <p class="brand__step-title">
+                <span class="brand__step-num ui-num" aria-hidden="true">0{{ index + 1 }}</span>
+                {{ step.title }}
+              </p>
+              <p class="brand__step-text">{{ step.text }}</p>
+            </div>
+          </li>
+        </ol>
+      </div>
     </aside>
 
-    <section class="auth-panel">
-      <div class="auth-card">
-        <div v-if="mode === 'login'">
-          <p class="kicker">01 / Аккаунт</p>
-          <h1 class="title">Вход</h1>
+    <!-- ===== Форма ===== -->
+    <section class="panel">
+      <div class="auth-card ui-card">
+        <AppTabs
+          :model-value="mode"
+          :items="modeTabs"
+          variant="underline"
+          aria-label="Вход или регистрация"
+          class="mode-tabs"
+          @update:model-value="switchMode"
+        />
+
+        <!-- ВХОД -->
+        <div v-if="mode === 'login'" class="auth-card__body">
+          <header class="auth-card__head">
+            <h1 class="auth-card__title">Вход</h1>
+            <p class="auth-card__lead">Войдите, чтобы продолжить работу с заказами и поставщиками.</p>
+          </header>
 
           <p v-if="authRequired" class="notice">
-            Чтобы добавлять товары в корзину и избранное, войдите в аккаунт или зарегистрируйтесь.
+            <AppIcon name="info" :size="18" />
+            <span>Чтобы добавлять товары в корзину и избранное, войдите в аккаунт или зарегистрируйтесь.</span>
           </p>
-          <p v-if="loginNotice" class="notice notice--success">{{ loginNotice }}</p>
+          <p v-if="loginNotice" class="notice notice--success">
+            <AppIcon name="check-circle" :size="18" />
+            <span>{{ loginNotice }}</span>
+          </p>
 
           <form class="form" @submit.prevent="submitLogin">
-            <input v-model="loginEmail" type="email" required placeholder="Email" autocomplete="email" class="input" />
-            <div class="password-field">
+            <FormField label="Email" required v-slot="{ id }">
               <input
-                v-model="loginPassword"
-                :type="showLoginPassword ? 'text' : 'password'"
+                :id="id"
+                v-model="loginEmail"
+                type="email"
                 required
-                placeholder="Пароль"
-                autocomplete="current-password"
-                class="input"
+                placeholder="name@company.ru"
+                autocomplete="email"
               />
-              <button
-                type="button"
-                class="eye-btn"
-                :aria-label="showLoginPassword ? 'Скрыть пароль' : 'Показать пароль'"
-                :aria-pressed="showLoginPassword"
-                :title="showLoginPassword ? 'Скрыть пароль' : 'Показать пароль'"
-                @click="showLoginPassword = !showLoginPassword"
-              >
-                <svg v-if="!showLoginPassword" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" />
-                  <circle cx="12" cy="12" r="3" />
-                </svg>
-                <svg v-else viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 19c-7 0-11-7-11-7a18.45 18.45 0 0 1 5.06-5.94" />
-                  <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 7 11 7a18.5 18.5 0 0 1-2.16 3.19" />
-                  <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
-                  <line x1="1" y1="1" x2="23" y2="23" />
-                </svg>
-              </button>
-            </div>
+            </FormField>
 
-            <p v-if="loginError" class="error">{{ loginError }}</p>
+            <FormField label="Пароль" required v-slot="{ id }">
+              <div class="password">
+                <input
+                  :id="id"
+                  v-model="loginPassword"
+                  :type="showLoginPassword ? 'text' : 'password'"
+                  required
+                  placeholder="Ваш пароль"
+                  autocomplete="current-password"
+                />
+                <button
+                  type="button"
+                  class="password__toggle"
+                  :aria-label="showLoginPassword ? 'Скрыть пароль' : 'Показать пароль'"
+                  :aria-pressed="showLoginPassword"
+                  :title="showLoginPassword ? 'Скрыть пароль' : 'Показать пароль'"
+                  @click="showLoginPassword = !showLoginPassword"
+                >
+                  <AppIcon :name="showLoginPassword ? 'eye-off' : 'eye'" :size="18" />
+                </button>
+              </div>
+            </FormField>
 
-            <button class="btn" type="submit" :disabled="loginLoading">
-              {{ loginLoading ? '...' : 'Войти' }}
-            </button>
+            <ErrorState v-if="loginError" title="Не удалось войти" :message="loginError" :retryable="false" />
+
+            <AppButton type="submit" block size="lg" :loading="loginLoading">Войти</AppButton>
           </form>
 
           <p class="switch">
             Нет аккаунта?
-            <router-link :to="registerLink" class="switch-link">Регистрация</router-link>
+            <RouterLink :to="registerLink" class="switch__link">Регистрация</RouterLink>
           </p>
         </div>
-      </div>
 
-      <Transition name="fade">
-        <div v-if="mode === 'register'" class="modal-overlay" @click.self="openLogin">
-          <div class="modal-card">
-            <p class="kicker">02 / Новый аккаунт</p>
-            <h1 class="title">Регистрация</h1>
+        <!-- РЕГИСТРАЦИЯ -->
+        <div v-else class="auth-card__body">
+          <header class="auth-card__head">
+            <h1 class="auth-card__title">Регистрация</h1>
+            <p class="auth-card__lead">Создайте аккаунт — данные предприятия можно заполнить позже в профиле.</p>
+          </header>
 
-            <p v-if="authRequired" class="notice">
-              Сначала зарегистрируйтесь — после этого вы сможете добавлять товары в корзину и избранное.
-            </p>
+          <p v-if="authRequired" class="notice">
+            <AppIcon name="info" :size="18" />
+            <span>Сначала зарегистрируйтесь — после этого вы сможете добавлять товары в корзину и избранное.</span>
+          </p>
 
-            <div class="role">
-              <button type="button" @click="regRole = 'BUYER'" :class="{ active: regRole === 'BUYER' }">
-                Покупатель
-              </button>
-              <button type="button" @click="regRole = 'SUPPLIER'" :class="{ active: regRole === 'SUPPLIER' }">
-                Поставщик
-              </button>
-            </div>
+          <div class="role">
+            <p id="reg-role-label" class="ui-label">Я регистрируюсь как</p>
+            <AppTabs v-model="regRole" :items="roleTabs" variant="pills" aria-label="Роль" class="role__tabs" />
+            <p class="role__hint">{{ roleHint }}</p>
+          </div>
 
-            <form class="form" @submit.prevent="submitRegister">
-              <input v-model="regEmail" type="email" required placeholder="Email" autocomplete="email" class="input" />
-              <div class="password-field">
+          <form class="form" @submit.prevent="submitRegister">
+            <FormField label="Email" required v-slot="{ id }">
+              <input
+                :id="id"
+                v-model="regEmail"
+                type="email"
+                required
+                placeholder="name@company.ru"
+                autocomplete="email"
+              />
+            </FormField>
+
+            <FormField label="Пароль" required hint="Не менее 8 символов." v-slot="{ id, describedBy }">
+              <div class="password">
                 <input
+                  :id="id"
                   v-model="regPassword"
                   :type="showRegPassword ? 'text' : 'password'"
                   required
                   minlength="8"
-                  placeholder="Пароль (не менее 8 символов)"
+                  placeholder="Придумайте пароль"
                   autocomplete="new-password"
-                  class="input"
+                  :aria-describedby="describedBy"
                 />
                 <button
                   type="button"
-                  class="eye-btn"
+                  class="password__toggle"
                   :aria-label="showRegPassword ? 'Скрыть пароль' : 'Показать пароль'"
                   :aria-pressed="showRegPassword"
                   :title="showRegPassword ? 'Скрыть пароль' : 'Показать пароль'"
                   @click="showRegPassword = !showRegPassword"
                 >
-                  <svg v-if="!showRegPassword" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" />
-                    <circle cx="12" cy="12" r="3" />
-                  </svg>
-                  <svg v-else viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 19c-7 0-11-7-11-7a18.45 18.45 0 0 1 5.06-5.94" />
-                    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 7 11 7a18.5 18.5 0 0 1-2.16 3.19" />
-                    <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
-                    <line x1="1" y1="1" x2="23" y2="23" />
-                  </svg>
+                  <AppIcon :name="showRegPassword ? 'eye-off' : 'eye'" :size="18" />
                 </button>
               </div>
+            </FormField>
 
-              <label class="check">
-                <input v-model="regAgree" type="checkbox" />
-                Я согласен с условиями
-              </label>
+            <label class="check">
+              <input v-model="regAgree" type="checkbox" />
+              <span>Я согласен с условиями</span>
+            </label>
 
-              <p v-if="regError" class="error">{{ regError }}</p>
+            <ErrorState v-if="regError" title="Не удалось создать аккаунт" :message="regError" :retryable="false" />
 
-              <button class="btn" type="submit" :disabled="regLoading || !regAgree">
-                {{ regLoading ? '...' : 'Создать аккаунт' }}
-              </button>
-            </form>
+            <AppButton type="submit" block size="lg" :loading="regLoading" :disabled="!regAgree">
+              Создать аккаунт
+            </AppButton>
+          </form>
 
-            <p class="switch">
-              Уже есть аккаунт?
-              <router-link :to="loginLink" class="switch-link">Войти</router-link>
-            </p>
-          </div>
+          <p class="switch">
+            Уже есть аккаунт?
+            <RouterLink :to="loginLink" class="switch__link">Войти</RouterLink>
+          </p>
         </div>
-      </Transition>
+      </div>
     </section>
   </div>
 </template>
 
 <style scoped>
-.auth-page {
+.auth {
   display: grid;
-  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
-  min-height: min(78vh, 720px);
-  margin: 1.25rem 0 2rem;
-  border: 1px solid var(--sl-line);
-  color: var(--sl-ink);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(1.25rem, 3vw, 2rem);
+  align-items: stretch;
 }
 
-p,
-h1 {
-  margin: 0;
+/* ===== Брендовая панель ===== */
+.brand {
+  position: relative;
+  display: flex;
+  min-height: 620px;
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  background-color: var(--c-brand-900);
+  background-size: cover;
+  background-position: center;
+  color: #fff;
 }
 
-/* ТЁМНАЯ КОЛОНКА */
-.auth-aside {
+/* затемнение фото, чтобы текст читался */
+.brand::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 42, 31, 0.86);
+}
+
+.brand__inner {
   position: relative;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: space-between;
   gap: 2rem;
-  padding: clamp(2rem, 5vw, 3.5rem);
-  color: #fff;
-  background:
-    repeating-linear-gradient(135deg, rgba(198, 236, 154, 0.05) 0 1px, transparent 1px 14px),
-    var(--sl-forest);
+  width: 100%;
+  padding: clamp(1.75rem, 4vw, 2.75rem);
 }
 
-.corner {
-  position: absolute;
-  width: 26px;
-  height: 26px;
-  border: 0 solid var(--sl-lime);
-  opacity: 0.85;
-}
-
-.corner--tl { top: 1.25rem; left: 1.25rem; border-top-width: 2px; border-left-width: 2px; }
-.corner--br { bottom: 1.25rem; right: 1.25rem; border-bottom-width: 2px; border-right-width: 2px; }
-
-.aside-eyebrow {
-  align-self: flex-start;
+.brand__logo {
   display: inline-flex;
   align-items: center;
-  gap: 0.65rem;
-  padding: 0.4rem 0.8rem;
-  border: 1px solid rgba(198, 236, 154, 0.45);
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--sl-lime);
+  gap: 0.6rem;
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
 }
 
-.aside-eyebrow-mark {
-  width: 8px;
-  height: 8px;
-  background: var(--sl-lime);
+.brand__mark {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--c-accent);
 }
 
-.aside-title {
-  font-family: var(--sl-display);
-  font-size: clamp(1.4rem, 2.6vw, 2.1rem);
-  font-weight: 600;
-  line-height: 1.18;
-  letter-spacing: -0.01em;
+.brand__copy {
+  display: grid;
+  gap: 0.85rem;
 }
 
-.aside-title em {
-  font-style: normal;
-  color: var(--sl-lime);
-  background: linear-gradient(var(--sl-lime), var(--sl-lime)) left 92% / 100% 3px no-repeat;
+.brand__title {
+  font-size: clamp(1.75rem, 3.2vw, 2.5rem);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
 }
 
-.aside-steps {
-  list-style: none;
+.brand__title span {
+  color: var(--c-accent);
+}
+
+.brand__lead {
+  max-width: 440px;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.brand__steps {
+  display: grid;
+  gap: 1rem;
   margin: 0;
-  padding: 0;
+  padding: 1.5rem 0 0;
+  list-style: none;
   border-top: 1px solid rgba(255, 255, 255, 0.14);
 }
 
-.aside-steps li {
-  display: grid;
-  grid-template-columns: 3rem 1fr;
-  align-items: baseline;
-  gap: 0.75rem;
-  padding: 0.9rem 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.86);
-}
-
-.aside-num {
-  font-family: var(--sl-display);
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--sl-lime);
-}
-
-/* ПАНЕЛЬ С ФОРМОЙ */
-.auth-panel {
-  display: grid;
-  background: var(--sl-paper);
-  border-top: 3px solid var(--sl-ink);
-}
-
-/* вход и регистрация занимают одну ячейку — без скачков при смене режима */
-.auth-panel > * {
-  grid-area: 1 / 1;
-}
-
-.auth-card:empty {
-  visibility: hidden;
-}
-
-.auth-card,
-.modal-overlay {
+.brand__step {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
+  gap: 0.85rem;
+}
+
+.brand__step-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--c-accent);
+}
+
+.brand__step-title {
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.brand__step-num {
+  margin-right: 0.35rem;
+  color: var(--c-accent);
+  font-size: var(--fs-sm);
+}
+
+.brand__step-text {
+  margin-top: 0.15rem;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: var(--fs-sm);
+}
+
+/* ===== Форма ===== */
+.panel {
+  display: grid;
   align-items: center;
-  padding: clamp(2rem, 5vw, 3.5rem) clamp(1.25rem, 4vw, 3rem);
+  justify-items: center;
 }
 
-.modal-overlay {
-  background: var(--sl-paper);
-}
-
-.auth-card > div,
-.modal-card {
+.auth-card {
+  display: grid;
+  gap: 1.5rem;
   width: 100%;
-  max-width: 420px;
+  max-width: 480px;
+  padding: clamp(1.25rem, 3vw, 2rem);
 }
 
-.kicker {
-  margin-bottom: 0.6rem;
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--sl-leaf);
-}
-
-.title {
-  margin-bottom: 1.75rem;
-  font-size: clamp(1.5rem, 3vw, 2.2rem);
-  color: var(--sl-ink);
-}
-
-.form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.input {
+.mode-tabs {
   width: 100%;
-  padding: 0.85rem 1rem;
-  border-radius: 0;
-  border: 1px solid var(--sl-line);
-  background: #fff;
 }
 
-.input:hover {
-  border-color: rgba(20, 33, 15, 0.32);
+.mode-tabs :deep(.app-tabs__tab) {
+  flex: 1 1 0;
+  justify-content: center;
 }
 
-.btn {
-  margin-top: 0.5rem;
-  padding: 0.95rem 1.5rem;
-  border-radius: 0;
-  background: var(--sl-ink);
-  color: #fff;
-  border: 1px solid var(--sl-ink);
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+.auth-card__body {
+  display: grid;
+  gap: 1.25rem;
 }
 
-.btn:hover:not(:disabled) {
-  background: var(--sl-leaf);
-  border-color: var(--sl-leaf);
+.auth-card__head {
+  display: grid;
+  gap: 0.35rem;
 }
 
-.btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
+.auth-card__title {
+  font-size: var(--fs-2xl);
 }
 
-.error {
-  padding: 0.7rem 0.9rem;
-  background: #fbeaea;
-  border: 1px solid #b3261e;
-  color: #b3261e;
-  font-size: 0.88rem;
-  font-weight: 600;
+.auth-card__lead {
+  color: var(--c-muted);
+  font-size: var(--fs-sm);
 }
 
-.switch {
-  margin-top: 1.5rem;
-  padding-top: 1.25rem;
-  border-top: 1px solid var(--sl-line);
-  font-size: 0.9rem;
-  color: var(--sl-muted);
-}
-
-.switch-link {
-  margin-left: 0.25rem;
-  font-weight: 700;
-  color: var(--sl-ink);
-  border-bottom: 1px solid var(--sl-ink);
-  transition: color 0.2s ease, border-color 0.2s ease;
-}
-
-.switch-link::after {
-  content: ' →';
-}
-
-.switch-link:hover {
-  color: var(--sl-leaf);
-  border-color: var(--sl-leaf);
-}
-
-/* ПОЯСНЕНИЕ НАД ФОРМОЙ */
 .notice {
-  margin-bottom: 1.25rem;
-  padding: 0.8rem 1rem;
-  background: var(--sl-lime);
-  border-left: 3px solid var(--sl-ink);
-  color: var(--sl-ink);
-  font-size: 0.9rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--c-accent-200);
+  border-radius: var(--r-md);
+  background: var(--c-accent-50);
+  color: var(--c-brand-800);
+  font-size: var(--fs-sm);
   font-weight: 600;
   line-height: 1.45;
 }
 
-.notice--success {
-  background: #fff;
-  border: 1px solid var(--sl-line);
-  border-left: 3px solid var(--sl-leaf);
+.notice .app-icon {
+  flex: 0 0 auto;
+  margin-top: 0.05rem;
+  color: var(--c-accent-700);
 }
 
-/* ПАРОЛЬ С «ГЛАЗИКОМ» */
-.password-field {
+.notice--success {
+  border-color: transparent;
+  background: var(--c-success-bg);
+  color: var(--c-success);
+}
+
+.notice--success .app-icon {
+  color: var(--c-success);
+}
+
+.form {
+  display: grid;
+  gap: 1rem;
+}
+
+/* поле пароля с «глазиком» */
+.password {
   position: relative;
 }
 
-.password-field .input {
-  padding-right: 3.25rem;
+.password input {
+  padding-right: 3rem;
 }
 
-.eye-btn {
+.password__toggle {
   position: absolute;
-  top: 1px;
-  right: 1px;
-  bottom: 1px;
-  width: 2.9rem;
+  top: 50%;
+  right: 0.35rem;
   display: grid;
   place-items: center;
-  padding: 0;
-  border: none;
-  border-left: 1px solid var(--sl-line);
-  border-radius: 0;
-  background: #fff;
-  color: var(--sl-muted);
-  cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--c-muted);
+  transform: translateY(-50%);
+  transition:
+    color var(--dur) var(--ease),
+    background var(--dur) var(--ease);
 }
 
-.eye-btn:hover {
-  background: var(--sl-paper);
-  color: var(--sl-ink);
+.password__toggle:hover {
+  background: var(--c-surface-sunken);
+  color: var(--c-text);
 }
 
-.eye-btn[aria-pressed='true'] {
-  color: var(--sl-ink);
+.password__toggle[aria-pressed='true'] {
+  color: var(--c-accent-700);
 }
 
-.eye-btn svg {
-  width: 20px;
-  height: 20px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-/* РОЛЬ — табы */
+/* выбор роли */
 .role {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  margin-bottom: 1.25rem;
-  border: 1px solid var(--sl-ink);
+  gap: 0.5rem;
 }
 
-.role button {
-  padding: 0.75rem 0.5rem;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  color: var(--sl-ink);
-  font-weight: 700;
-  cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease;
-}
-
-.role button + button {
-  border-left: 1px solid var(--sl-ink);
-}
-
-.role button:hover:not(.active) {
-  background: var(--sl-lime);
-}
-
-.role .active {
-  background: var(--sl-ink);
-  color: #fff;
-}
-
-.check {
+.role__tabs {
   display: flex;
+  width: 100%;
+}
+
+.role__tabs :deep(.app-tabs__tab) {
+  flex: 1 1 0;
+  justify-content: center;
+}
+
+.role__hint {
+  color: var(--c-muted);
+  font-size: var(--fs-sm);
+}
+
+/* согласие */
+.check {
+  display: inline-flex;
   align-items: center;
   gap: 0.6rem;
-  padding: 0.25rem 0;
-  font-size: 0.88rem;
-  color: var(--sl-muted);
+  color: var(--c-text-2);
+  font-size: var(--fs-sm);
+  font-weight: 600;
   cursor: pointer;
 }
 
-.check input {
-  width: 16px;
-  height: 16px;
-  margin: 0;
+.switch {
+  color: var(--c-muted);
+  font-size: var(--fs-sm);
+  text-align: center;
 }
 
-.btn:focus-visible,
-.eye-btn:focus-visible,
-.role button:focus-visible,
-.switch-link:focus-visible,
-.check input:focus-visible {
-  outline: 2px solid var(--sl-leaf);
-  outline-offset: 2px;
+.switch__link {
+  margin-left: 0.25rem;
+  color: var(--c-accent-700);
+  font-weight: 700;
 }
 
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.2s ease;
+.switch__link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
+/* ===== Адаптив ===== */
+@media (max-width: 1024px) {
+  .brand__step-text {
+    display: none;
+  }
 }
 
-/* АДАПТИВ */
-@media (max-width: 900px) {
-  .auth-page {
+@media (max-width: 860px) {
+  .auth {
     grid-template-columns: 1fr;
+  }
+
+  .brand {
     min-height: 0;
   }
 
-  .auth-aside {
-    gap: 1.25rem;
-  }
-}
-
-@media (max-width: 768px) {
-  .auth-page {
-    margin-top: 0.75rem;
+  .brand__inner {
+    gap: 1rem;
+    padding: 1.25rem 1.25rem 1.4rem;
   }
 
-  .aside-steps {
+  .brand__title {
+    font-size: var(--fs-xl);
+  }
+
+  .brand__lead,
+  .brand__steps {
     display: none;
+  }
+
+  .auth-card {
+    max-width: none;
   }
 }
 </style>

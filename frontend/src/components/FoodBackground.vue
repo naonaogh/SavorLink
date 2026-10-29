@@ -101,7 +101,7 @@ function generateIcons(): FoodIcon[] {
   const types = supplierTypes.value
   const count = getCount()
 
-  return Array.from({ length: count }).map((_, i) => ({
+  return Array.from({ length: count }).map(() => ({
     type: randomItem(types),
     left: `${random(0, 100)}%`,
     top: `${random(0, 100)}%`,

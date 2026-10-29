@@ -4,22 +4,31 @@ import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import { useShopStore, type Product, type Supplier } from '@/stores/shopStore'
 import { useRequireAuth } from '@/composables/useRequireAuth'
+import { useToast } from '@/composables/useToast'
+import { getApiErrorMessage } from '@/services/apiClient'
 import {
-  AddIcon,
-  CalendarIcon,
-  CloseIcon,
-  DocumentIcon,
-  LocationIcon,
-  MinusIcon,
-  NotificationIcon,
-  StarIcon,
-} from '@/assets/icons/png'
+  AppAvatar,
+  AppBadge,
+  AppButton,
+  AppIcon,
+  AppModal,
+  AppSection,
+  EmptyState,
+  ErrorState,
+  FormField,
+  LoadingState,
+  ProductThumb,
+  QuantityStepper,
+  RatingStars,
+} from '@/components/ui'
+import { formatDate, formatNumber, formatPrice, pluralize } from '@/utils/format'
 
 const route = useRoute()
 const router = useRouter()
 const store = useShopStore()
 const authStore = useAuthStore()
 const requireAuth = useRequireAuth()
+const toast = useToast()
 
 const supplierId = computed(() => Number(route.params.id))
 const supplier = computed(() => store.state.currentSupplier)
@@ -34,11 +43,18 @@ const isSubmittingReview = ref(false)
 
 const isBuyer = computed(() => authStore.user?.role === 'BUYER')
 
-onMounted(async () => {
+/* локальное состояние загрузки (для отображения) */
+const loaded = ref(false)
+const isAddingToCart = ref(false)
+
+const loadSupplier = async () => {
   if (supplierId.value) {
     await Promise.all([store.fetchSupplierDetail(supplierId.value), store.fetchSupplierReviews(supplierId.value)])
   }
-})
+  loaded.value = true
+}
+
+onMounted(loadSupplier)
 
 const openProductModal = (product: Product) => {
   if (!requireAuth()) return
@@ -56,8 +72,17 @@ const totalForProduct = computed(() =>
 
 const addToCart = async () => {
   if (!selectedProduct.value || !requireAuth()) return
-  await store.addToCart(selectedProduct.value, quantity.value)
-  closeProductModal()
+  const name = selectedProduct.value.name
+  isAddingToCart.value = true
+  try {
+    await store.addToCart(selectedProduct.value, quantity.value)
+    toast.success('Товар добавлен в корзину', `${name} — ${formatNumber(quantity.value)} кг`)
+    closeProductModal()
+  } catch (error) {
+    toast.error('Не удалось добавить товар в корзину', getApiErrorMessage(error, 'Попробуйте ещё раз'))
+  } finally {
+    isAddingToCart.value = false
+  }
 }
 
 const toggleSupplierFavorite = (target: Supplier) => {
@@ -80,794 +105,800 @@ const submitReview = async () => {
     ratingValue.value = 5
     showReviewModal.value = false
     showReviews.value = true
-  } catch (error: any) {
-    alert(error?.response?.data?.detail || error?.message || 'Не удалось отправить отзыв')
+    toast.success('Спасибо за отзыв', 'Оценка поставщика обновлена')
+  } catch (error: unknown) {
+    toast.error('Не удалось отправить отзыв', getApiErrorMessage(error, 'Не удалось отправить отзыв'))
   } finally {
     isSubmittingReview.value = false
   }
 }
 
-const formatDate = (value: string) =>
-  new Date(value).toLocaleDateString('ru-RU', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-  })
+/* ── только для отображения ─────────────────── */
+const isLoading = computed(() => !loaded.value || store.state.loading)
+const chatUserId = computed(() => {
+  const owner = supplier.value?.users?.[0]
+  return authStore.user && owner && owner.id !== authStore.user.id ? owner.id : null
+})
+const locationText = computed(() => (supplier.value ? [supplier.value.region, supplier.value.city].filter(Boolean).join(', ') : ''))
+const productsCount = computed(() => supplier.value?.products.length ?? 0)
+const reviewsCount = computed(() => store.state.supplierReviews.length)
+const isSupplierFav = computed(() => (supplier.value ? store.isSupplierFavorite(supplier.value.id) : false))
+
+const RATING_LABELS = ['Плохо', 'Ниже среднего', 'Нормально', 'Хорошо', 'Отлично']
+const ratingHint = computed(() => RATING_LABELS[ratingValue.value - 1] ?? '')
+
+const onProductModalToggle = (open: boolean) => {
+  if (!open) closeProductModal()
+}
 </script>
 
 <template>
-  <main class="supplier-page">
-    <div v-if="store.state.loading" class="status-box">Загрузка данных поставщика...</div>
-    <div v-else-if="store.state.error" class="status-box status-box--error">{{ store.state.error }}</div>
+  <div class="page">
+    <AppButton to="/catalog" variant="ghost" size="sm" icon="arrow-left" class="back-link">Каталог</AppButton>
+
+    <LoadingState v-if="isLoading" variant="skeleton" :rows="5" label="Загрузка данных поставщика…" />
+
+    <ErrorState
+      v-else-if="store.state.error"
+      :message="store.state.error"
+      :retrying="store.state.loading"
+      @retry="loadSupplier"
+    />
 
     <template v-else-if="supplier">
-      <section class="hero-card">
-        <div class="hero-main">
-          <div class="avatar">{{ supplier.name.charAt(0) }}</div>
-          <div>
-            <p class="eyebrow kicker">Поставщик</p>
-            <h1>{{ supplier.name }}</h1>
-            <p class="subline">{{ supplier.company }}</p>
-            <p class="supplier-desc" v-if="supplier.description">{{ supplier.description }}</p>
-            <div class="meta">
-              <span class="meta-item">
-                <img :src="StarIcon" alt="" class="meta-icon" aria-hidden="true" />
-                {{ supplier.rating.toFixed(1) }} ({{ supplier.reviews }})
+      <!-- ===== ШАПКА ПОСТАВЩИКА ===== -->
+      <section class="hero ui-card" aria-labelledby="supplier-title">
+        <AppAvatar :name="supplier.name" :size="72" />
+
+        <div class="hero__info">
+          <p class="ui-eyebrow">Поставщик</p>
+          <h1 id="supplier-title" class="hero__title">{{ supplier.name }}</h1>
+          <p v-if="supplier.company && supplier.company !== supplier.name" class="hero__company">
+            {{ supplier.company }}
+          </p>
+          <p v-if="supplier.description" class="hero__desc">{{ supplier.description }}</p>
+
+          <ul class="hero__meta">
+            <li>
+              <RatingStars
+                v-if="supplier.reviews > 0"
+                :value="supplier.rating"
+                :size="16"
+                show-value
+              />
+              <span v-else class="ui-muted">Пока нет оценок</span>
+              <span v-if="supplier.reviews > 0" class="ui-muted ui-num">
+                {{ supplier.reviews }} {{ pluralize(supplier.reviews, ['отзыв', 'отзыва', 'отзывов']) }}
               </span>
-              <span class="meta-item">
-                <img :src="LocationIcon" alt="" class="meta-icon" aria-hidden="true" />
-                {{ supplier.locations }}
+            </li>
+            <li v-if="locationText">
+              <AppIcon name="map-pin" :size="16" />
+              <span>{{ locationText }}</span>
+            </li>
+            <li v-if="supplier.since">
+              <AppIcon name="calendar" :size="16" />
+              <span>На платформе с {{ supplier.since }}</span>
+            </li>
+            <li>
+              <AppIcon name="package" :size="16" />
+              <span class="ui-num">
+                {{ productsCount }} {{ pluralize(productsCount, ['товар', 'товара', 'товаров']) }}
               </span>
-              <span class="meta-item">
-                <img :src="CalendarIcon" alt="" class="meta-icon" aria-hidden="true" />
-                с {{ supplier.since }}
-              </span>
-            </div>
-          </div>
+            </li>
+          </ul>
         </div>
 
-        <div class="hero-actions">
-          <button 
-            v-if="authStore.user && supplier.users?.[0] && supplier.users[0].id !== authStore.user.id" 
-            class="action-btn action-btn--chat" 
-            @click="router.push(`/chat?userId=${supplier.users[0].id}`)"
+        <div class="hero__actions">
+          <AppButton
+            v-if="chatUserId"
+            variant="secondary"
+            icon="message"
+            @click="router.push(`/chat?userId=${chatUserId}`)"
           >
-            <img :src="NotificationIcon" alt="" class="btn-icon-chat" />
             Написать
-          </button>
-          <button v-if="isBuyer" class="action-btn action-btn--primary" @click="showReviewModal = true">
-            Оценить
-          </button>
-          <button class="action-btn" @click="toggleSupplierFavorite(supplier)">
-            {{ store.isSupplierFavorite(supplier.id) ? 'В избранном' : 'В избранное' }}
-          </button>
+          </AppButton>
+          <AppButton v-if="isBuyer" icon="star" @click="showReviewModal = true">Оценить</AppButton>
+          <AppButton
+            variant="secondary"
+            class="fav-toggle"
+            :class="{ 'is-on': isSupplierFav }"
+            :aria-pressed="isSupplierFav"
+            @click="toggleSupplierFavorite(supplier)"
+          >
+            <span class="fav-toggle__inner">
+              <AppIcon name="heart" :size="18" :filled="isSupplierFav" />
+              {{ isSupplierFav ? 'В избранном' : 'В избранное' }}
+            </span>
+          </AppButton>
         </div>
       </section>
 
-      <section class="panel">
-        <div class="panel-head">
-          <div>
-            <p class="kicker">Ассортимент</p>
-            <h2>Продукция</h2>
+      <!-- ===== АССОРТИМЕНТ ===== -->
+      <section class="block" aria-labelledby="products-title">
+        <div class="block__head">
+          <div class="block__titles">
+            <p class="ui-eyebrow">Ассортимент</p>
+            <h2 id="products-title" class="block__title">
+              Продукция <span class="block__count ui-num">{{ productsCount }}</span>
+            </h2>
           </div>
-          <button class="link-btn" @click="showReviews = !showReviews">
+          <AppButton
+            variant="ghost"
+            size="sm"
+            :icon="showReviews ? 'eye-off' : 'eye'"
+            :aria-expanded="showReviews"
+            aria-controls="supplier-reviews"
+            @click="showReviews = !showReviews"
+          >
             {{ showReviews ? 'Скрыть отзывы' : 'Показать отзывы' }}
-          </button>
+          </AppButton>
         </div>
 
-        <div class="products-grid">
-          <article v-for="product in supplier.products" :key="product.id" class="product-card">
-            <div class="product-image">
-              <img :src="DocumentIcon" alt="" class="product-image-icon" aria-hidden="true" />
-            </div>
-            <div class="product-body">
-              <h3>{{ product.name }}</h3>
-              <p>{{ product.category?.name || 'Без категории' }}</p>
-              <div class="product-meta">
-                <strong>{{ Number(product.price).toFixed(0) }} ₽/кг</strong>
-                <span>Остаток: {{ product.quantity_in_stock ?? 0 }} кг</span>
-              </div>
-              <div class="product-actions">
-                <button class="action-btn action-btn--primary" @click="openProductModal(product)">В корзину</button>
-                <button class="action-btn" @click="toggleProductFavorite(product)">
-                  {{ store.isProductFavorite(product.id) ? 'В избранном' : 'В избранное' }}
+        <EmptyState
+          v-if="productsCount === 0"
+          icon="package"
+          title="Товаров пока нет"
+          description="Поставщик ещё не добавил продукцию в каталог."
+        />
+
+        <ul v-else class="products-grid">
+          <li v-for="product in supplier.products" :key="product.id">
+            <article class="product-card ui-card ui-card--interactive">
+              <div class="product-card__media">
+                <ProductThumb :category="product.category?.name" size="fill" />
+                <button
+                  type="button"
+                  class="fav-btn"
+                  :class="{ 'is-on': store.isProductFavorite(product.id) }"
+                  :aria-pressed="store.isProductFavorite(product.id)"
+                  :aria-label="
+                    store.isProductFavorite(product.id)
+                      ? `Убрать «${product.name}» из избранного`
+                      : `Добавить «${product.name}» в избранное`
+                  "
+                  :title="store.isProductFavorite(product.id) ? 'В избранном' : 'В избранное'"
+                  @click="toggleProductFavorite(product)"
+                >
+                  <AppIcon name="heart" :size="18" :filled="store.isProductFavorite(product.id)" />
                 </button>
               </div>
-            </div>
-          </article>
-        </div>
+
+              <div class="product-card__body">
+                <AppBadge size="sm" :tone="product.category ? 'accent' : 'neutral'" class="product-card__cat">
+                  {{ product.category?.name || 'Без категории' }}
+                </AppBadge>
+                <h3 class="product-card__name">{{ product.name }}</h3>
+
+                <div class="product-card__price">
+                  <strong class="ui-num">{{ formatPrice(product.price) }}</strong>
+                  <span class="ui-muted">за кг</span>
+                </div>
+
+                <dl class="product-card__facts">
+                  <div>
+                    <dt>Остаток</dt>
+                    <dd class="ui-num">{{ formatNumber(product.quantity_in_stock ?? 0) }} кг</dd>
+                  </div>
+                  <div v-if="product.min_order_qty">
+                    <dt>Мин. заказ</dt>
+                    <dd class="ui-num">{{ formatNumber(product.min_order_qty) }} кг</dd>
+                  </div>
+                </dl>
+
+                <AppButton icon="cart" block class="product-card__cta" @click="openProductModal(product)">
+                  В корзину
+                </AppButton>
+              </div>
+            </article>
+          </li>
+        </ul>
       </section>
 
-      <section v-if="showReviews" class="panel">
-        <div class="panel-head">
-          <div>
-            <p class="kicker">Покупатели</p>
-            <h2>Отзывы</h2>
-          </div>
-        </div>
-        <div v-if="store.state.supplierReviews.length === 0" class="empty-inline">
-          Отзывов пока нет.
-        </div>
-        <div v-else class="reviews-list">
-        <article v-for="review in store.state.supplierReviews" :key="review.id" class="review-card">
-          <div class="review-head">
-            <div>
-              <strong>Покупатель #{{ review.author_user_id }}</strong>
-              <div class="review-date">{{ formatDate(review.created_at) }}</div>
+      <!-- ===== ОТЗЫВЫ ===== -->
+      <AppSection
+        v-if="showReviews"
+        id="supplier-reviews"
+        title="Отзывы покупателей"
+        :description="
+          reviewsCount
+            ? `${reviewsCount} ${pluralize(reviewsCount, ['отзыв', 'отзыва', 'отзывов'])} о поставщике`
+            : undefined
+        "
+      >
+        <template #actions>
+          <RatingStars v-if="supplier.reviews > 0" :value="supplier.rating" show-value />
+        </template>
+
+        <EmptyState
+          v-if="reviewsCount === 0"
+          compact
+          icon="message"
+          title="Отзывов пока нет"
+          :description="isBuyer ? 'Работали с этим поставщиком? Поделитесь впечатлением.' : undefined"
+        >
+          <AppButton v-if="isBuyer" icon="star" @click="showReviewModal = true">Оставить отзыв</AppButton>
+        </EmptyState>
+
+        <ul v-else class="reviews">
+          <li v-for="review in store.state.supplierReviews" :key="review.id" class="review">
+            <AppAvatar name="Покупатель" :size="40" tone="neutral" />
+            <div class="review__main">
+              <div class="review__head">
+                <div>
+                  <p class="review__author">Покупатель #{{ review.author_user_id }}</p>
+                  <time class="review__date" :datetime="review.created_at">
+                    {{ formatDate(review.created_at, 'long') }}
+                  </time>
+                </div>
+                <RatingStars :value="review.rating" :size="14" />
+              </div>
+              <p class="review__text" :class="{ 'ui-muted': !review.comment }">
+                {{ review.comment || 'Без комментария' }}
+              </p>
             </div>
-            <div class="stars">
-              <span v-for="index in 5" :key="index" :class="{ active: index <= review.rating }">
-                <img :src="StarIcon" alt="" class="star-icon" aria-hidden="true" />
-              </span>
-            </div>
-          </div>
-          <p>{{ review.comment || 'Без комментария' }}</p>
-        </article>
-        </div>
-      </section>
+          </li>
+        </ul>
+      </AppSection>
     </template>
-  </main>
 
-  <teleport to="body">
-    <div v-if="selectedProduct" class="modal-backdrop" @click.self="closeProductModal">
-      <div class="modal-card">
-        <button class="modal-close" @click="closeProductModal">
-          <img :src="CloseIcon" alt="" class="close-icon" aria-hidden="true" />
-        </button>
-        <p class="kicker">Товар</p>
-        <h2>{{ selectedProduct.name }}</h2>
-        <p>{{ selectedProduct.description || 'Описание отсутствует' }}</p>
-        <div class="modal-meta">
-          <span>{{ Number(selectedProduct.price).toFixed(0) }} ₽/кг</span>
-          <span>Мин. заказ: {{ selectedProduct.min_order_qty || 1 }} кг</span>
+    <EmptyState
+      v-else
+      icon="store"
+      title="Поставщик не найден"
+      description="Возможно, он был удалён или ссылка устарела."
+    >
+      <AppButton to="/catalog" icon="arrow-left">Вернуться в каталог</AppButton>
+    </EmptyState>
+  </div>
+
+  <!-- ===== МОДАЛКА: В КОРЗИНУ ===== -->
+  <AppModal
+    :open="!!selectedProduct"
+    :title="selectedProduct?.name ?? ''"
+    :description="selectedProduct ? `${formatPrice(selectedProduct.price)} за кг` : undefined"
+    size="sm"
+    :persistent="isAddingToCart"
+    @update:open="onProductModalToggle"
+  >
+    <div v-if="selectedProduct" class="cart-modal">
+      <div class="cart-modal__product">
+        <ProductThumb :category="selectedProduct.category?.name" size="md" />
+        <div class="cart-modal__info">
+          <AppBadge size="sm" :tone="selectedProduct.category ? 'accent' : 'neutral'">
+            {{ selectedProduct.category?.name || 'Без категории' }}
+          </AppBadge>
+          <p class="cart-modal__desc" :class="{ 'ui-muted': !selectedProduct.description }">
+            {{ selectedProduct.description || 'Описание отсутствует' }}
+          </p>
         </div>
+      </div>
 
-        <div class="qty-row">
-          <button class="qty-btn" @click="quantity = Math.max(1, quantity - 1)">
-            <img :src="MinusIcon" alt="" class="qty-icon" aria-hidden="true" />
-          </button>
-          <span>{{ quantity }} кг</span>
-          <button class="qty-btn" @click="quantity += 1">
-            <img :src="AddIcon" alt="" class="qty-icon" aria-hidden="true" />
-          </button>
+      <dl class="cart-modal__facts">
+        <div>
+          <dt>Мин. заказ</dt>
+          <dd class="ui-num">{{ formatNumber(selectedProduct.min_order_qty || 1) }} кг</dd>
         </div>
-
-        <div class="modal-total">{{ totalForProduct.toFixed(0) }} ₽</div>
-
-        <div class="modal-actions">
-          <button class="action-btn action-btn--primary" @click="addToCart">Добавить</button>
-          <button class="action-btn" @click="closeProductModal">Отмена</button>
+        <div>
+          <dt>В наличии</dt>
+          <dd class="ui-num">{{ formatNumber(selectedProduct.quantity_in_stock ?? 0) }} кг</dd>
         </div>
+      </dl>
+
+      <div class="cart-modal__qty">
+        <span class="ui-label">Количество</span>
+        <QuantityStepper v-model="quantity" :min="1" unit="кг" label="Количество, кг" />
+      </div>
+
+      <div class="cart-modal__total">
+        <span>Итого</span>
+        <strong class="ui-num">{{ formatPrice(totalForProduct) }}</strong>
       </div>
     </div>
 
-    <div v-if="showReviewModal" class="modal-backdrop" @click.self="showReviewModal = false">
-      <div class="modal-card">
-        <button class="modal-close" @click="showReviewModal = false">
-          <img :src="CloseIcon" alt="" class="close-icon" aria-hidden="true" />
-        </button>
-        <p class="kicker">Отзыв</p>
-        <h2>Оставить отзыв</h2>
-        <div class="field">
-          <label>Оценка</label>
-          <select v-model="ratingValue">
-            <option :value="5">5</option>
-            <option :value="4">4</option>
-            <option :value="3">3</option>
-            <option :value="2">2</option>
-            <option :value="1">1</option>
-          </select>
+    <template #footer>
+      <AppButton variant="secondary" :disabled="isAddingToCart" @click="closeProductModal">Отмена</AppButton>
+      <AppButton icon="cart" :loading="isAddingToCart" @click="addToCart">Добавить</AppButton>
+    </template>
+  </AppModal>
+
+  <!-- ===== МОДАЛКА: ОТЗЫВ ===== -->
+  <AppModal
+    v-model:open="showReviewModal"
+    title="Оставить отзыв"
+    :description="supplier ? `О поставщике «${supplier.name}»` : undefined"
+    size="sm"
+    :persistent="isSubmittingReview"
+  >
+    <form id="review-form" class="review-form" @submit.prevent="submitReview">
+      <fieldset class="rating-field">
+        <legend class="ui-label">Оценка <span class="rating-field__req" aria-hidden="true">*</span></legend>
+        <div class="rating-field__row">
+          <div class="rating-field__stars">
+            <button
+              v-for="n in 5"
+              :key="n"
+              type="button"
+              class="star-btn"
+              :class="{ 'is-on': n <= ratingValue }"
+              :aria-label="`Оценка ${n} из 5`"
+              :aria-pressed="n === ratingValue"
+              @click="ratingValue = n"
+            >
+              <AppIcon name="star" :size="28" :filled="n <= ratingValue" :stroke-width="1.6" />
+            </button>
+          </div>
+          <span class="rating-field__hint" aria-live="polite">{{ ratingHint }}</span>
         </div>
-        <div class="field">
-          <label>Комментарий</label>
-          <textarea v-model="reviewComment" rows="4" placeholder="Поделитесь впечатлением"></textarea>
-        </div>
-        <div class="modal-actions">
-          <button class="action-btn action-btn--primary" :disabled="isSubmittingReview" @click="submitReview">
-            {{ isSubmittingReview ? 'Отправка...' : 'Отправить' }}
-          </button>
-          <button class="action-btn" @click="showReviewModal = false">Отмена</button>
-        </div>
-      </div>
-    </div>
-  </teleport>
+      </fieldset>
+
+      <FormField label="Комментарий" hint="Необязательно" v-slot="{ id, describedBy }">
+        <textarea
+          :id="id"
+          v-model="reviewComment"
+          rows="4"
+          placeholder="Поделитесь впечатлением о качестве, сроках и общении"
+          :aria-describedby="describedBy"
+        ></textarea>
+      </FormField>
+    </form>
+
+    <template #footer>
+      <AppButton variant="secondary" :disabled="isSubmittingReview" @click="showReviewModal = false">Отмена</AppButton>
+      <AppButton type="submit" form="review-form" icon="send" :loading="isSubmittingReview">Отправить</AppButton>
+    </template>
+  </AppModal>
 </template>
 
 <style scoped>
-.supplier-page {
+.page {
   display: grid;
-  gap: 1.25rem;
-  padding-bottom: 2rem;
-  color: var(--sl-ink);
-}
-
-h1,
-h2,
-h3 {
-  margin: 0;
-  color: var(--sl-ink);
-}
-
-.kicker {
-  margin: 0 0 0.6rem;
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--sl-leaf);
-}
-
-/* ===== СТАТУС ===== */
-.status-box {
-  padding: 1rem 1.25rem;
-  background: var(--sl-paper);
-  border: 1px solid var(--sl-line);
-  border-left: 4px solid var(--sl-leaf);
-  font-weight: 600;
-}
-
-.status-box--error {
-  color: #b3261e;
-  background: #fbeaea;
-  border-color: #b3261e;
-}
-
-/* ===== HERO ===== */
-.hero-card {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 1.5rem 2rem;
-  padding: clamp(1.25rem, 3vw, 2.25rem);
-  background: var(--sl-paper);
-  border: 1px solid var(--sl-line);
-  border-top: 3px solid var(--sl-ink);
-}
-
-.hero-main {
-  display: flex;
   gap: 1.5rem;
-  align-items: flex-start;
-  min-width: 0;
 }
 
-.hero-main > div:last-child {
-  min-width: 0;
+.back-link {
+  justify-self: start;
+  margin: 0 0 -0.75rem -0.6rem;
 }
 
-.avatar {
-  flex: 0 0 auto;
-  width: 84px;
-  height: 84px;
+/* ===== ШАПКА ===== */
+.hero {
   display: grid;
-  place-items: center;
-  background: var(--sl-ink);
-  color: var(--sl-lime);
-  font-family: var(--sl-display);
-  font-weight: 600;
-  font-size: 2rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 1.25rem 1.5rem;
+  padding: clamp(1.25rem, 3vw, 2rem);
 }
 
-.hero-card h1 {
-  font-size: clamp(1.5rem, 3vw, 2.2rem);
-  line-height: 1.15;
+.hero__info {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.hero__title {
+  font-size: var(--fs-3xl);
   overflow-wrap: anywhere;
 }
 
-.subline {
-  margin: 0.5rem 0 0;
+.hero__company {
+  color: var(--c-text-2);
   font-weight: 600;
-  color: var(--sl-muted);
 }
 
-.supplier-desc {
-  margin: 0.75rem 0 0;
-  max-width: 640px;
-  line-height: 1.5;
-  color: #3f4a37;
+.hero__desc {
+  max-width: 720px;
+  color: var(--c-text-2);
+  line-height: 1.6;
 }
 
-.meta {
+.hero__meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 0;
-  margin-top: 1.1rem;
-  border: 1px solid var(--sl-line);
-  background: #fff;
-  width: fit-content;
-  max-width: 100%;
+  gap: 0.5rem 1.25rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--c-text-2);
+  font-size: var(--fs-sm);
 }
 
-.meta-item {
+.hero__meta li {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.5rem 0.85rem;
-  font-size: 0.88rem;
-  font-weight: 700;
-  color: var(--sl-ink);
+  gap: 0.4rem;
 }
 
-.meta-item + .meta-item {
-  border-left: 1px solid var(--sl-line);
+.hero__meta .app-icon {
+  color: var(--c-accent-600);
 }
 
-.meta-icon,
-.close-icon,
-.product-image-icon,
-.star-icon,
-.qty-icon,
-.btn-icon-chat {
-  display: block;
-  object-fit: contain;
-  filter: grayscale(1) brightness(0.35);
-}
-
-.meta-icon {
-  width: 15px;
-  height: 15px;
-}
-
-.close-icon {
-  width: 14px;
-  height: 14px;
-}
-
-.hero-actions {
-  display: grid;
-  gap: 0.5rem;
-  min-width: 200px;
-}
-
-/* ===== КНОПКИ ===== */
-.action-btn,
-.link-btn,
-.qty-btn {
-  border-radius: 0;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
-}
-
-.action-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.7rem 1.2rem;
-  background: transparent;
-  color: var(--sl-ink);
-  border: 1px solid var(--sl-ink);
-}
-
-.action-btn:hover:not(:disabled) {
-  background: var(--sl-ink);
-  color: #fff;
-}
-
-.action-btn--primary {
-  background: var(--sl-ink);
-  color: #fff;
-}
-
-.action-btn--primary:hover:not(:disabled) {
-  background: var(--sl-leaf);
-  border-color: var(--sl-leaf);
-}
-
-.action-btn--chat {
-  background: #fff;
-  border-color: var(--sl-line);
-}
-
-.action-btn--chat:hover:not(:disabled) {
-  background: var(--sl-lime);
-  border-color: var(--sl-lime);
-  color: var(--sl-ink);
-}
-
-.action-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.btn-icon-chat {
-  width: 16px;
-  height: 16px;
-}
-
-.link-btn {
-  padding: 0.4rem 0;
-  background: none;
-  border: none;
-  border-bottom: 1px solid transparent;
-  color: var(--sl-ink);
-}
-
-.link-btn:hover {
-  border-bottom-color: var(--sl-ink);
-}
-
-.action-btn:focus-visible,
-.link-btn:focus-visible,
-.qty-btn:focus-visible,
-.modal-close:focus-visible {
-  outline: 2px solid var(--sl-leaf);
-  outline-offset: 2px;
-}
-
-/* ===== ПАНЕЛИ ===== */
-.panel {
-  padding: clamp(1.25rem, 3vw, 2.25rem);
-  background: var(--sl-paper);
-  border: 1px solid var(--sl-line);
-}
-
-.panel-head {
+.hero__actions {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
+.fav-toggle__inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.fav-toggle.is-on .app-icon {
+  color: var(--c-danger);
+}
+
+/* ===== БЛОКИ ===== */
+.block {
+  display: grid;
+  gap: 1rem;
+}
+
+.block__head {
+  display: flex;
+  flex-wrap: wrap;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 1rem;
-  padding-bottom: 1.25rem;
-  margin-bottom: 1.5rem;
-  border-bottom: 1px solid var(--sl-line);
+  gap: 0.75rem 1rem;
 }
 
-.panel h2 {
-  font-size: clamp(1.25rem, 2.4vw, 1.6rem);
+.block__titles {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.block__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: var(--fs-xl);
+}
+
+.block__count {
+  padding: 0.1rem 0.55rem;
+  border-radius: var(--r-full);
+  background: var(--c-surface-sunken);
+  color: var(--c-text-2);
+  font-size: var(--fs-sm);
+  font-weight: 700;
 }
 
 /* ===== ТОВАРЫ ===== */
 .products-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 0.75rem;
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.products-grid > li {
+  display: flex;
 }
 
 .product-card {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  background: #fff;
-  border: 1px solid var(--sl-line);
-  transition: border-color 0.2s ease;
+  overflow: hidden;
 }
 
-.product-card:hover {
-  border-color: var(--sl-ink);
+.product-card__media {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  border-bottom: 1px solid var(--c-border);
 }
 
-.product-image {
-  min-height: 130px;
+.fav-btn {
+  position: absolute;
+  top: 0.65rem;
+  right: 0.65rem;
   display: grid;
   place-items: center;
-  background:
-    repeating-linear-gradient(135deg, rgba(20, 33, 15, 0.04) 0 1px, transparent 1px 12px),
-    var(--sl-paper);
-  border-bottom: 1px solid var(--sl-line);
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-full);
+  background: var(--c-surface);
+  color: var(--c-muted);
+  transition:
+    color var(--dur) var(--ease),
+    border-color var(--dur) var(--ease),
+    background var(--dur) var(--ease);
 }
 
-.product-image-icon {
-  width: 36px;
-  height: 36px;
+.fav-btn:hover {
+  border-color: var(--c-border-strong);
+  color: var(--c-danger);
 }
 
-.product-body {
+.fav-btn.is-on {
+  border-color: var(--c-danger-bg);
+  background: var(--c-danger-bg);
+  color: var(--c-danger);
+}
+
+.product-card__body {
   display: flex;
-  flex-direction: column;
   flex: 1;
-  padding: 1.1rem 1.1rem 1.2rem;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem 1.1rem 1.1rem;
 }
 
-.product-body h3 {
-  margin: 0 0 0.5rem;
-  font-size: 1.05rem;
-  font-weight: 700;
-  line-height: 1.35;
-}
-
-.product-body p {
+.product-card__cat {
   align-self: flex-start;
-  margin: 0;
-  padding: 0.2rem 0.5rem;
-  background: var(--sl-paper);
-  border: 1px solid var(--sl-line);
-  font-size: 0.72rem;
+}
+
+.product-card__name {
+  font-size: var(--fs-md);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.product-card__price {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  font-size: var(--fs-sm);
+}
+
+.product-card__price strong {
+  color: var(--c-brand-800);
+  font-size: var(--fs-xl);
   font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--sl-muted);
+  letter-spacing: -0.02em;
 }
 
-.product-meta {
-  display: grid;
-  gap: 0.25rem;
-  margin-top: 1rem;
-  padding-top: 0.85rem;
-  border-top: 1px solid var(--sl-line);
-}
-
-.product-meta strong {
-  font-family: var(--sl-display);
-  font-size: 1.2rem;
-  font-weight: 600;
-}
-
-.product-meta span {
-  font-size: 0.88rem;
-  color: var(--sl-muted);
-}
-
-.product-actions {
+.product-card__facts {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: auto;
-  padding-top: 1rem;
+  gap: 0.35rem 1.25rem;
+  margin: 0;
+  font-size: var(--fs-sm);
 }
 
-.product-actions .action-btn {
-  flex: 1 1 auto;
-  padding-inline: 0.55rem;
-  font-size: 0.9rem;
-  white-space: nowrap;
+.product-card__facts div {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.product-card__facts dt {
+  color: var(--c-muted);
+}
+
+.product-card__facts dd {
+  margin: 0;
+  font-weight: 700;
+  color: var(--c-text-2);
+}
+
+.product-card__cta {
+  margin-top: auto;
 }
 
 /* ===== ОТЗЫВЫ ===== */
-.reviews-list {
+.reviews {
   display: grid;
-  gap: 0.75rem;
-}
-
-.review-card {
-  padding: 1.1rem 1.25rem;
-  background: #fff;
-  border: 1px solid var(--sl-line);
-}
-
-.review-card p {
   margin: 0;
-  line-height: 1.55;
-  color: #3f4a37;
+  padding: 0;
+  list-style: none;
 }
 
-.review-head {
+.review {
   display: flex;
-  justify-content: space-between;
+  gap: 0.9rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--c-border);
+}
+
+.review:first-child {
+  padding-top: 0;
+}
+
+.review:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.review__main {
+  display: grid;
+  flex: 1;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.review__head {
+  display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
-  gap: 1rem;
-  margin-bottom: 0.75rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--sl-line);
+  justify-content: space-between;
+  gap: 0.35rem 1rem;
 }
 
-.review-date {
-  margin-top: 0.15rem;
-  font-size: 0.75rem;
+.review__author {
   font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--sl-muted);
+  font-size: var(--fs-sm);
 }
 
-.stars {
-  display: flex;
-  gap: 0.2rem;
+.review__date {
+  color: var(--c-muted);
+  font-size: var(--fs-xs);
 }
 
-.stars span {
-  opacity: 0.2;
-}
-
-.stars .active {
-  opacity: 1;
-}
-
-.star-icon {
-  width: 14px;
-  height: 14px;
-}
-
-.empty-inline {
-  padding: 1.25rem;
-  background: #fff;
-  border: 1px dashed var(--sl-line);
-  color: var(--sl-muted);
+.review__text {
+  color: var(--c-text-2);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 
 /* ===== МОДАЛКИ ===== */
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(20, 33, 15, 0.55);
+.cart-modal {
   display: grid;
-  place-items: center;
-  padding: 1rem;
-  z-index: 2000;
+  gap: 1.1rem;
 }
 
-.modal-card {
-  position: relative;
-  width: min(560px, 100%);
-  max-height: calc(100vh - 2rem);
-  overflow-y: auto;
-  padding: clamp(1.25rem, 4vw, 2rem);
-  background: #fff;
-  border: 1px solid var(--sl-line);
-  border-top: 3px solid var(--sl-ink);
-  border-radius: 0;
-  box-shadow: 0 24px 48px rgba(20, 33, 15, 0.18);
-  color: var(--sl-ink);
+.cart-modal__product {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.9rem;
 }
 
-.modal-card h2 {
-  padding-right: 2.5rem;
-  font-size: clamp(1.2rem, 2.6vw, 1.5rem);
-}
-
-.modal-card > p:not(.kicker) {
-  margin: 0.75rem 0 0;
-  color: #3f4a37;
-}
-
-.modal-close {
-  position: absolute;
-  top: 0.9rem;
-  right: 0.9rem;
-  width: 34px;
-  height: 34px;
-  padding: 0;
+.cart-modal__info {
   display: grid;
-  place-items: center;
-  background: #fff;
-  border: 1px solid var(--sl-line);
-  border-radius: 0;
-  cursor: pointer;
-  transition: border-color 0.2s ease, background 0.2s ease;
+  justify-items: start;
+  gap: 0.4rem;
+  min-width: 0;
 }
 
-.modal-close:hover {
-  border-color: var(--sl-ink);
-  background: var(--sl-paper);
+.cart-modal__desc {
+  color: var(--c-text-2);
+  font-size: var(--fs-sm);
+  line-height: 1.55;
 }
 
-.modal-meta,
-.qty-row,
-.modal-actions {
+.cart-modal__facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin: 0;
+}
+
+.cart-modal__facts div {
+  padding: 0.65rem 0.8rem;
+  border-radius: var(--r-sm);
+  background: var(--c-surface-sunken);
+}
+
+.cart-modal__facts dt {
+  color: var(--c-muted);
+  font-size: var(--fs-xs);
+}
+
+.cart-modal__facts dd {
+  margin: 0;
+  font-weight: 700;
+}
+
+.cart-modal__qty {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 1.25rem;
-}
-
-.modal-meta span {
-  padding: 0.2rem 0.5rem;
-  background: var(--sl-paper);
-  border: 1px solid var(--sl-line);
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.qty-row {
   align-items: center;
-  gap: 0;
-  width: fit-content;
-  border: 1px solid var(--sl-line);
+  justify-content: space-between;
+  gap: 0.6rem;
 }
 
-.qty-row > span {
-  min-width: 6rem;
-  text-align: center;
+.cart-modal__total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--c-border);
+  color: var(--c-text-2);
+  font-weight: 600;
+}
+
+.cart-modal__total strong {
+  color: var(--c-brand-800);
+  font-size: var(--fs-2xl);
   font-weight: 800;
+  letter-spacing: -0.02em;
 }
 
-.qty-btn {
-  width: 44px;
-  height: 44px;
+.review-form {
+  display: grid;
+  gap: 1.1rem;
+}
+
+.rating-field {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.rating-field legend {
+  padding: 0;
+  margin-bottom: 0.5rem;
+}
+
+.rating-field__req {
+  color: var(--c-danger);
+}
+
+.rating-field__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+
+.rating-field__stars {
+  display: flex;
+  gap: 0.15rem;
+}
+
+.star-btn {
   display: grid;
   place-items: center;
+  width: 44px;
+  height: 44px;
   padding: 0;
-  background: var(--sl-paper);
-  border: none;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--c-border-strong);
+  transition:
+    color var(--dur) var(--ease),
+    background var(--dur) var(--ease);
 }
 
-.qty-btn:hover {
-  background: var(--sl-lime);
+.star-btn:hover {
+  background: var(--c-surface-sunken);
 }
 
-.qty-icon {
-  width: 16px;
-  height: 16px;
+.star-btn.is-on {
+  color: var(--c-warning);
 }
 
-.modal-total {
-  margin-top: 1.25rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--sl-line);
-  font-family: var(--sl-display);
-  font-size: 1.6rem;
-  font-weight: 600;
-  color: var(--sl-ink);
-}
-
-.modal-actions .action-btn {
-  flex: 1 1 auto;
-}
-
-.field {
-  display: grid;
-  gap: 0.4rem;
-  margin-top: 1.1rem;
-}
-
-.field label {
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--sl-muted);
-}
-
-select,
-textarea {
-  width: 100%;
-  border-radius: 0;
-  border: 1px solid var(--sl-line);
-  background: #fff;
-  padding: 0.75rem 0.9rem;
-  color: var(--sl-ink);
-}
-
-select:focus,
-textarea:focus {
-  border-color: var(--sl-leaf);
+.rating-field__hint {
+  color: var(--c-text-2);
+  font-size: var(--fs-sm);
+  font-weight: 700;
 }
 
 /* ===== АДАПТИВ ===== */
 @media (max-width: 900px) {
-  .hero-card {
-    grid-template-columns: 1fr;
+  .hero {
+    grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .hero-actions {
-    min-width: 0;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  }
-
-  .review-head,
-  .panel-head {
-    display: grid;
-  }
-
-  .panel-head .link-btn {
-    justify-self: start;
+  .hero__actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
   }
 }
 
-@media (max-width: 520px) {
-  .hero-main {
-    display: grid;
-    gap: 1rem;
+@media (max-width: 640px) {
+  .hero {
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  .avatar {
-    width: 64px;
-    height: 64px;
-    font-size: 1.5rem;
-  }
-
-  .meta {
-    width: 100%;
-  }
-
-  .meta-item {
+  .hero__actions > * {
     flex: 1 1 100%;
   }
 
-  .meta-item + .meta-item {
-    border-left: none;
-    border-top: 1px solid var(--sl-line);
+  .products-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .product-card__media {
+    aspect-ratio: 16 / 7;
   }
 }
 </style>

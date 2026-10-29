@@ -1,16 +1,29 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import api from '@/services/apiClient'
-import { useAuthStore } from '@/stores/authStore'
+import { computed, onMounted, ref } from 'vue'
+import api, { getApiErrorMessage } from '@/services/apiClient'
+import {
+  AppBadge,
+  AppButton,
+  AppIcon,
+  AppModal,
+  AppSection,
+  AppTabs,
+  EmptyState,
+  FormField,
+  LoadingState,
+  PageHeader,
+} from '@/components/ui'
+import type { TabItem } from '@/components/ui'
+import { useToast } from '@/composables/useToast'
+import { useConfirm } from '@/composables/useConfirm'
+import { formatNumber, pluralize } from '@/utils/format'
 
-const activeTab = ref('users')
-const error = ref('')
-const notice = ref<{ text: string; type: 'success' | 'error' } | null>(null)
+type AdminTab = 'users' | 'categories' | 'enterprises' | 'status'
 
-const showNotice = (text: string, type: 'success' | 'error' = 'success') => {
-  notice.value = { text, type }
-  setTimeout(() => { notice.value = null }, 3000)
-}
+const toast = useToast()
+const { confirm } = useConfirm()
+
+const activeTab = ref<AdminTab>('users')
 
 // -------------------------
 // USERS
@@ -23,26 +36,25 @@ const loadUsers = async () => {
   try {
     const res = await api.get('/users')
     users.value = res.data
-  } catch (err: any) {
-    showNotice('Ошибка загрузки пользователей', 'error')
+  } catch {
+    toast.error('Ошибка загрузки пользователей')
   } finally {
     loadingUsers.value = false
   }
 }
 
-const updateRole = async (userId: number, currentRole: string) => {
-  const newRole = prompt(`Изменить роль (ADMIN, BUYER, SUPPLIER). Текущая: ${currentRole}`, currentRole)
+const updateRole = async (userId: number, currentRole: string, newRole: string) => {
   if (!newRole || newRole === currentRole) return
   if (!['ADMIN', 'BUYER', 'SUPPLIER'].includes(newRole)) {
-    showNotice('Неверная роль', 'error')
+    toast.error('Неверная роль')
     return
   }
   try {
     await api.patch(`/users/${userId}/role`, { role: newRole })
-    showNotice('Роль обновлена')
+    toast.success('Роль обновлена')
     loadUsers()
-  } catch (err) {
-    showNotice('Ошибка изменения роли', 'error')
+  } catch {
+    toast.error('Ошибка изменения роли')
   }
 }
 
@@ -57,34 +69,32 @@ const loadCategories = async () => {
   try {
     const res = await api.get('/products/categories')
     categories.value = res.data
-  } catch (err) {
-    showNotice('Ошибка загрузки категорий', 'error')
+  } catch {
+    toast.error('Ошибка загрузки категорий')
   } finally {
     loadingCategories.value = false
   }
 }
 
-const createCategory = async () => {
-  const name = prompt('Название новой категории:')
+const createCategory = async (name: string) => {
   if (!name) return
   try {
     await api.post('/products/categories', { name })
-    showNotice('Категория создана')
+    toast.success('Категория создана')
     loadCategories()
-  } catch (err) {
-    showNotice('Ошибка создания категории', 'error')
+  } catch {
+    toast.error('Ошибка создания категории')
   }
 }
 
-const editCategory = async (catId: number, currentName: string) => {
-  const name = prompt('Новое название:', currentName)
+const editCategory = async (catId: number, currentName: string, name: string) => {
   if (!name || name === currentName) return
   try {
     await api.patch(`/products/categories/${catId}`, { name })
-    showNotice('Категория обновлена')
+    toast.success('Категория обновлена')
     loadCategories()
-  } catch (err) {
-    showNotice('Ошибка обновления категории', 'error')
+  } catch {
+    toast.error('Ошибка обновления категории')
   }
 }
 
@@ -99,21 +109,32 @@ const loadEnterprises = async () => {
   try {
     const res = await api.get('/enterprises')
     enterprises.value = res.data
-  } catch (err) {
-    showNotice('Ошибка загрузки предприятий', 'error')
+  } catch {
+    toast.error('Ошибка загрузки предприятий')
   } finally {
     loadingEnterprises.value = false
   }
 }
 
+const deletingId = ref<number | null>(null)
+
 const deleteEnterprise = async (id: number, name: string) => {
-  if (!confirm(`Удалить предприятие "${name}"? Это также удалит все его товары и заказы!`)) return
+  const ok = await confirm({
+    title: `Удалить предприятие «${name}»?`,
+    message: 'Это также удалит все его товары и заказы! Действие нельзя отменить.',
+    confirmLabel: 'Удалить',
+    tone: 'danger',
+  })
+  if (!ok) return
+  deletingId.value = id
   try {
     await api.delete(`/enterprises/${id}`)
-    showNotice('Предприятие удалено')
+    toast.success('Предприятие удалено')
     loadEnterprises()
-  } catch (err) {
-    showNotice('Ошибка удаления', 'error')
+  } catch (e) {
+    toast.error('Ошибка удаления', getApiErrorMessage(e, 'Попробуйте ещё раз'))
+  } finally {
+    deletingId.value = null
   }
 }
 
@@ -133,7 +154,7 @@ const checkStatus = async () => {
     const diff = (Date.now() - start)
     systemStatus.value.api = `ОК (${diff} мс)`
     systemStatus.value.db = `ОК (Связь с базой данных в норме)`
-  } catch (err) {
+  } catch {
     systemStatus.value.api = 'Ошибка соединения'
     systemStatus.value.db = 'Ошибка соединения / БД недоступна'
   }
@@ -146,546 +167,542 @@ onMounted(() => {
   checkStatus()
 })
 
+/* ── Отображение ───────────────────────────────── */
+const ROLE_OPTIONS = [
+  { value: 'BUYER', label: 'Покупатель', tone: 'accent' as const },
+  { value: 'SUPPLIER', label: 'Поставщик', tone: 'brand' as const },
+  { value: 'ADMIN', label: 'Администратор', tone: 'info' as const },
+]
+
+const roleMeta = (role: string) =>
+  ROLE_OPTIONS.find((r) => r.value === role) ?? { value: role, label: role || '—', tone: 'neutral' as const }
+
+const tabs = computed<TabItem<AdminTab>[]>(() => [
+  { value: 'users', label: 'Пользователи', icon: 'users', count: users.value.length },
+  { value: 'categories', label: 'Категории', icon: 'tag', count: categories.value.length },
+  { value: 'enterprises', label: 'Предприятия', icon: 'building', count: enterprises.value.length },
+  { value: 'status', label: 'Мониторинг', icon: 'bar-chart' },
+])
+
+const statusTone = (value: string) =>
+  value.startsWith('Ошибка') ? 'danger' : value.startsWith('ОК') ? 'success' : 'neutral'
+
+const statusLabel = (value: string) =>
+  value.startsWith('Ошибка') ? 'Недоступно' : value.startsWith('ОК') ? 'Работает' : 'Проверка'
+
+const checkingStatus = computed(() => systemStatus.value.api === 'Проверка...')
+
+/* модалка смены роли */
+const roleModalOpen = ref(false)
+const roleTarget = ref<{ id: number; email: string; role: string } | null>(null)
+const roleValue = ref('')
+const savingRole = ref(false)
+
+const openRoleModal = (u: { id: number; email: string; role: string }) => {
+  roleTarget.value = { id: u.id, email: u.email, role: u.role }
+  roleValue.value = u.role
+  roleModalOpen.value = true
+}
+
+const submitRole = async () => {
+  if (!roleTarget.value) return
+  savingRole.value = true
+  await updateRole(roleTarget.value.id, roleTarget.value.role, roleValue.value)
+  savingRole.value = false
+  roleModalOpen.value = false
+}
+
+/* модалка категории (создание / переименование) */
+const categoryModalOpen = ref(false)
+const categoryTarget = ref<{ id: number; name: string } | null>(null)
+const categoryName = ref('')
+const savingCategory = ref(false)
+
+const openCreateCategory = () => {
+  categoryTarget.value = null
+  categoryName.value = ''
+  categoryModalOpen.value = true
+}
+
+const openEditCategory = (cat: { id: number; name: string }) => {
+  categoryTarget.value = { id: cat.id, name: cat.name }
+  categoryName.value = cat.name
+  categoryModalOpen.value = true
+}
+
+const submitCategory = async () => {
+  const name = categoryName.value.trim()
+  savingCategory.value = true
+  if (categoryTarget.value) {
+    await editCategory(categoryTarget.value.id, categoryTarget.value.name, name)
+  } else {
+    await createCategory(name)
+  }
+  savingCategory.value = false
+  categoryModalOpen.value = false
+}
 </script>
 
 <template>
-  <div class="admin-panel">
-    <header class="admin-header">
-      <p class="kicker">Администрирование</p>
-      <h1>Панель Администратора</h1>
-      <p class="subtitle">Управление пользователями, справочниками и мониторинг</p>
-    </header>
+  <div class="admin">
+    <PageHeader
+      eyebrow="Администрирование"
+      title="Панель администратора"
+      description="Управление пользователями, справочниками и мониторинг"
+    />
 
-    <Transition name="fade">
-      <div v-if="notice" class="admin-toast" :class="notice.type">
-        {{ notice.text }}
+    <AppTabs v-model="activeTab" :items="tabs" variant="underline" aria-label="Разделы администрирования" />
+
+    <!-- ТАБ ПОЛЬЗОВАТЕЛИ -->
+    <AppSection
+      v-if="activeTab === 'users'"
+      :title="`Управление пользователями (${formatNumber(users.length)})`"
+      description="Роли и привязка к предприятиям"
+      flush
+    >
+      <template #actions>
+        <AppButton variant="secondary" size="sm" icon="refresh" :loading="loadingUsers" @click="loadUsers">
+          Обновить
+        </AppButton>
+      </template>
+
+      <LoadingState v-if="loadingUsers && users.length === 0" variant="skeleton" :rows="5" />
+      <div v-else-if="users.length === 0" class="admin__empty">
+        <EmptyState compact icon="users" title="Пользователей нет" />
       </div>
-    </Transition>
+      <div v-else class="ui-table-wrap admin__table-wrap">
+        <table class="ui-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Email</th>
+              <th>Роль</th>
+              <th>Предприятия</th>
+              <th class="admin__th-actions">Действия</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="u in users" :key="u.id">
+              <td class="ui-num admin__id">{{ u.id }}</td>
+              <td class="admin__strong">{{ u.email }}</td>
+              <td>
+                <AppBadge :tone="roleMeta(u.role).tone" size="sm">{{ roleMeta(u.role).label }}</AppBadge>
+              </td>
+              <td>
+                <div v-if="u.enterprises?.length" class="admin__tags">
+                  <span v-for="ent in u.enterprises" :key="ent.id" class="admin__tag">
+                    {{ ent.short_name }} <span class="ui-num ui-muted">#{{ ent.id }}</span>
+                  </span>
+                </div>
+                <span v-else class="ui-muted">—</span>
+              </td>
+              <td class="admin__td-actions">
+                <AppButton variant="secondary" size="sm" icon="shield" @click="openRoleModal(u)">
+                  Сменить роль
+                </AppButton>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </AppSection>
 
-    <nav class="admin-tabs">
-      <button :class="{ active: activeTab === 'users' }" @click="activeTab = 'users'">Пользователи</button>
-      <button :class="{ active: activeTab === 'categories' }" @click="activeTab = 'categories'">Справочники (Категории)</button>
-      <button :class="{ active: activeTab === 'enterprises' }" @click="activeTab = 'enterprises'">Предприятия</button>
-      <button :class="{ active: activeTab === 'status' }" @click="activeTab = 'status'">Мониторинг</button>
-    </nav>
+    <!-- ТАБ КАТЕГОРИИ -->
+    <AppSection
+      v-else-if="activeTab === 'categories'"
+      title="Управление справочниками"
+      description="Категории товаров в каталоге"
+      flush
+    >
+      <template #actions>
+        <AppButton variant="secondary" size="sm" icon="refresh" :loading="loadingCategories" @click="loadCategories">
+          Обновить
+        </AppButton>
+        <AppButton size="sm" icon="plus" @click="openCreateCategory">Создать категорию</AppButton>
+      </template>
 
-    <div class="admin-content card">
-      <!-- ТАБ ПОЛЬЗОВАТЕЛИ -->
-      <section v-if="activeTab === 'users'">
-        <div class="section-head">
-          <h2>Управление пользователями ({users.length})</h2>
-          <button class="btn" @click="loadUsers">Обновить</button>
-        </div>
-        <div v-if="loadingUsers" class="loading">Загрузка...</div>
-        <div v-else class="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Email</th>
-                <th>Роль</th>
-                <th>Предприятия</th>
-                <th>Действия</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="u in users" :key="u.id">
-                <td>{{ u.id }}</td>
-                <td>{{ u.email }}</td>
-                <td>
-                  <span class="role-badge" :class="u.role">{{ u.role }}</span>
-                </td>
-                <td>
-                  <div v-for="ent in u.enterprises" :key="ent.id" class="ent-tag">
-                    {{ ent.short_name }} (#{{ ent.id }})
-                  </div>
-                  <span v-if="!u.enterprises.length" class="text-muted">—</span>
-                </td>
-                <td>
-                  <button class="btn-small" @click="updateRole(u.id, u.role)">См. роль</button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <LoadingState v-if="loadingCategories && categories.length === 0" variant="skeleton" :rows="5" />
+      <div v-else-if="categories.length === 0" class="admin__empty">
+        <EmptyState compact icon="tag" title="Категорий пока нет" description="Создайте первую категорию товаров.">
+          <AppButton size="sm" icon="plus" @click="openCreateCategory">Создать категорию</AppButton>
+        </EmptyState>
+      </div>
+      <div v-else class="ui-table-wrap admin__table-wrap">
+        <table class="ui-table admin__table--narrow">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Название</th>
+              <th class="admin__th-actions">Действия</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="cat in categories" :key="cat.id">
+              <td class="ui-num admin__id">{{ cat.id }}</td>
+              <td class="admin__strong">{{ cat.name }}</td>
+              <td class="admin__td-actions">
+                <AppButton variant="ghost" size="sm" icon="pencil" @click="openEditCategory(cat)">
+                  Редактировать
+                </AppButton>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </AppSection>
 
-      <!-- ТАБ КАТЕГОРИИ -->
-      <section v-else-if="activeTab === 'categories'">
-        <div class="section-head">
-          <h2>Управление справочниками</h2>
-          <div class="actions">
-            <button class="btn primary-btn" @click="createCategory">Создать категорию</button>
-            <button class="btn" @click="loadCategories">Обновить</button>
-          </div>
-        </div>
-        <div v-if="loadingCategories" class="loading">Загрузка...</div>
-        <ul v-else class="cat-list">
-          <li v-for="cat in categories" :key="cat.id" class="cat-item">
-            <span><strong>#{{ cat.id }}</strong> {{ cat.name }}</span>
-            <button class="btn-small" @click="editCategory(cat.id, cat.name)">Редактировать</button>
-          </li>
-        </ul>
-      </section>
+    <!-- ТАБ ПРЕДПРИЯТИЯ -->
+    <AppSection
+      v-else-if="activeTab === 'enterprises'"
+      title="Управление предприятиями"
+      :description="`${formatNumber(enterprises.length)} ${pluralize(enterprises.length, ['предприятие', 'предприятия', 'предприятий'])} на платформе`"
+      flush
+    >
+      <template #actions>
+        <AppButton variant="secondary" size="sm" icon="refresh" :loading="loadingEnterprises" @click="loadEnterprises">
+          Обновить
+        </AppButton>
+      </template>
 
-      <!-- ТАБ ПРЕДПРИЯТИЯ -->
-      <section v-else-if="activeTab === 'enterprises'">
-        <div class="section-head">
-          <h2>Управление предприятиями</h2>
-          <button class="btn" @click="loadEnterprises">Обновить</button>
-        </div>
-        <div v-if="loadingEnterprises" class="loading">Загрузка...</div>
-        <div v-else class="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>ИНН</th>
-                <th>Название</th>
-                <th>Регион</th>
-                <th>Действия</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="ent in enterprises" :key="ent.id">
-                <td>{{ ent.id }}</td>
-                <td>{{ ent.inn }}</td>
-                <td><strong>{{ ent.short_name }}</strong></td>
-                <td>{{ ent.region }}, {{ ent.city || '—' }}</td>
-                <td>
-                  <button class="btn-small btn-danger" @click="deleteEnterprise(ent.id, ent.short_name)">Удалить</button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <LoadingState v-if="loadingEnterprises && enterprises.length === 0" variant="skeleton" :rows="5" />
+      <div v-else-if="enterprises.length === 0" class="admin__empty">
+        <EmptyState compact icon="building" title="Предприятий нет" />
+      </div>
+      <div v-else class="ui-table-wrap admin__table-wrap">
+        <table class="ui-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>ИНН</th>
+              <th>Название</th>
+              <th>Регион</th>
+              <th class="admin__th-actions">Действия</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="ent in enterprises" :key="ent.id">
+              <td class="ui-num admin__id">{{ ent.id }}</td>
+              <td class="ui-num">{{ ent.inn || '—' }}</td>
+              <td class="admin__strong">{{ ent.short_name }}</td>
+              <td>{{ ent.region || '—' }}, {{ ent.city || '—' }}</td>
+              <td class="admin__td-actions">
+                <AppButton
+                  variant="danger-ghost"
+                  size="sm"
+                  icon="trash"
+                  :loading="deletingId === ent.id"
+                  @click="deleteEnterprise(ent.id, ent.short_name)"
+                >
+                  Удалить
+                </AppButton>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </AppSection>
 
-      <!-- ТАБ СТАТУС -->
-      <section v-else-if="activeTab === 'status'">
-        <div class="section-head">
-          <h2>Состояние сервисов</h2>
-          <button class="btn" @click="checkStatus">Проверить сейчас</button>
-        </div>
-        
+    <!-- ТАБ СТАТУС -->
+    <template v-else-if="activeTab === 'status'">
+      <AppSection title="Состояние сервисов" description="Проверка доступности API и базы данных">
+        <template #actions>
+          <AppButton variant="secondary" size="sm" icon="refresh" :loading="checkingStatus" @click="checkStatus">
+            Проверить сейчас
+          </AppButton>
+        </template>
+
         <div class="status-grid">
           <div class="status-card">
-            <h3>Backend API</h3>
-            <p :class="{ error_text: systemStatus.api.startsWith('Ошибка') }">{{ systemStatus.api }}</p>
+            <span class="status-card__icon" :class="`is-${statusTone(systemStatus.api)}`">
+              <AppIcon name="trending-up" :size="20" />
+            </span>
+            <div class="status-card__body">
+              <div class="status-card__top">
+                <h3 class="status-card__title">Backend API</h3>
+                <AppBadge :tone="statusTone(systemStatus.api)" size="sm" dot>{{ statusLabel(systemStatus.api) }}</AppBadge>
+              </div>
+              <p class="status-card__value ui-num" :class="{ 'is-error': systemStatus.api.startsWith('Ошибка') }">
+                {{ systemStatus.api }}
+              </p>
+            </div>
           </div>
           <div class="status-card">
-            <h3>База данных</h3>
-            <p :class="{ error_text: systemStatus.db.startsWith('Ошибка') }">{{ systemStatus.db }}</p>
+            <span class="status-card__icon" :class="`is-${statusTone(systemStatus.db)}`">
+              <AppIcon name="clipboard-list" :size="20" />
+            </span>
+            <div class="status-card__body">
+              <div class="status-card__top">
+                <h3 class="status-card__title">База данных</h3>
+                <AppBadge :tone="statusTone(systemStatus.db)" size="sm" dot>{{ statusLabel(systemStatus.db) }}</AppBadge>
+              </div>
+              <p class="status-card__value" :class="{ 'is-error': systemStatus.db.startsWith('Ошибка') }">
+                {{ systemStatus.db }}
+              </p>
+            </div>
           </div>
         </div>
+      </AppSection>
 
-        <div class="status-info">
-          <p><strong>Мониторинг ошибок:</strong> Ошибки автоматически логгируются в stderr контейнера backend.</p>
-          <p><strong>Резервное копирование:</strong> Postgres-том `postgres_data` сохраняется на уровне файловой системы Docker-хоста. Рекомендуется настроить cron для создания ежедневных pg_dump.</p>
-        </div>
-      </section>
+      <AppSection title="Эксплуатация">
+        <ul class="ops">
+          <li class="ops__item">
+            <AppIcon name="alert-circle" :size="18" class="ops__icon" />
+            <p>
+              <strong>Мониторинг ошибок:</strong> Ошибки автоматически логгируются в stderr контейнера backend.
+            </p>
+          </li>
+          <li class="ops__item">
+            <AppIcon name="download" :size="18" class="ops__icon" />
+            <p>
+              <strong>Резервное копирование:</strong> Postgres-том <code>postgres_data</code> сохраняется на уровне
+              файловой системы Docker-хоста. Рекомендуется настроить cron для создания ежедневных pg_dump.
+            </p>
+          </li>
+        </ul>
+      </AppSection>
+    </template>
 
-    </div>
+    <!-- МОДАЛКА: СМЕНА РОЛИ -->
+    <AppModal
+      v-model:open="roleModalOpen"
+      title="Сменить роль"
+      :description="roleTarget ? `Пользователь ${roleTarget.email}` : undefined"
+      size="sm"
+      :persistent="savingRole"
+    >
+      <form id="admin-role-form" class="admin__form" @submit.prevent="submitRole">
+        <FormField
+          label="Роль"
+          required
+          :hint="roleTarget ? `Текущая роль: ${roleMeta(roleTarget.role).label}` : undefined"
+          v-slot="{ id, describedBy, invalid }"
+        >
+          <select :id="id" v-model="roleValue" required :aria-describedby="describedBy" :aria-invalid="invalid">
+            <option v-for="option in ROLE_OPTIONS" :key="option.value" :value="option.value">
+              {{ option.label }} ({{ option.value }})
+            </option>
+          </select>
+        </FormField>
+      </form>
+      <template #footer>
+        <AppButton variant="ghost" :disabled="savingRole" @click="roleModalOpen = false">Отмена</AppButton>
+        <AppButton
+          type="submit"
+          form="admin-role-form"
+          icon="check"
+          :loading="savingRole"
+          :disabled="!roleTarget || roleValue === roleTarget.role"
+        >
+          Сохранить роль
+        </AppButton>
+      </template>
+    </AppModal>
+
+    <!-- МОДАЛКА: КАТЕГОРИЯ -->
+    <AppModal
+      v-model:open="categoryModalOpen"
+      :title="categoryTarget ? 'Редактировать категорию' : 'Новая категория'"
+      :description="categoryTarget ? `Категория #${categoryTarget.id}` : 'Категория появится в каталоге и фильтрах'"
+      size="sm"
+      :persistent="savingCategory"
+    >
+      <form id="admin-category-form" class="admin__form" @submit.prevent="submitCategory">
+        <FormField label="Название" required v-slot="{ id, describedBy, invalid }">
+          <input
+            :id="id"
+            v-model="categoryName"
+            type="text"
+            required
+            autocomplete="off"
+            placeholder="Например, Молочная продукция"
+            :aria-describedby="describedBy"
+            :aria-invalid="invalid"
+          />
+        </FormField>
+      </form>
+      <template #footer>
+        <AppButton variant="ghost" :disabled="savingCategory" @click="categoryModalOpen = false">Отмена</AppButton>
+        <AppButton
+          type="submit"
+          form="admin-category-form"
+          :icon="categoryTarget ? 'check' : 'plus'"
+          :loading="savingCategory"
+          :disabled="!categoryName.trim() || (!!categoryTarget && categoryName.trim() === categoryTarget.name)"
+        >
+          {{ categoryTarget ? 'Сохранить' : 'Создать' }}
+        </AppButton>
+      </template>
+    </AppModal>
   </div>
 </template>
 
 <style scoped>
-.admin-panel {
-  display: flex;
-  flex-direction: column;
-  background: var(--sl-paper);
-  border: 1px solid var(--sl-line);
-  border-top: 3px solid var(--sl-ink);
-  color: var(--sl-ink);
-}
-
-/* ===== ШАПКА ===== */
-.admin-header {
-  padding: clamp(1.25rem, 3vw, 2rem) clamp(1.25rem, 3vw, 2rem) 1.5rem;
-}
-
-.kicker {
-  margin: 0 0 0.6rem;
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--sl-leaf);
-}
-
-.admin-header h1 {
-  margin: 0;
-  font-size: clamp(1.5rem, 3vw, 2.2rem);
-  color: var(--sl-ink);
-}
-
-.subtitle {
-  margin: 0.75rem 0 0;
-  color: var(--sl-muted);
-}
-
-/* ===== ТАБЫ ===== */
-.admin-tabs {
-  display: flex;
-  gap: 0;
-  padding: 0 clamp(1.25rem, 3vw, 2rem);
-  border-bottom: 1px solid var(--sl-line);
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.admin-tabs::-webkit-scrollbar {
-  display: none;
-}
-
-.admin-tabs button {
-  flex: 0 0 auto;
-  margin-bottom: -1px;
-  padding: 0.85rem 1.1rem;
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
-  font-weight: 700;
-  color: var(--sl-muted);
-  white-space: nowrap;
-  cursor: pointer;
-  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
-}
-
-.admin-tabs button:hover {
-  color: var(--sl-ink);
-  border-bottom-color: var(--sl-line);
-}
-
-.admin-tabs button.active {
-  color: var(--sl-ink);
-  border-bottom-color: var(--sl-ink);
-}
-
-.admin-tabs button:focus-visible {
-  outline: 2px solid var(--sl-leaf);
-  outline-offset: -2px;
-}
-
-/* ===== КОНТЕНТ ===== */
-.admin-content.card {
-  margin: clamp(1.25rem, 3vw, 2rem);
-  padding: clamp(1rem, 2.5vw, 1.5rem);
-  background: #fff;
-  border: 1px solid var(--sl-line);
-  border-radius: 0;
-}
-
-.section-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.75rem 1rem;
-  padding-bottom: 1.25rem;
-  margin-bottom: 1.25rem;
-  border-bottom: 1px solid var(--sl-line);
-}
-
-.section-head h2 {
-  margin: 0;
-  font-size: 1.1rem;
-  color: var(--sl-ink);
-}
-
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.loading {
-  padding: 1rem 0;
-  color: var(--sl-muted);
-}
-
-/* ===== ТАБЛИЦЫ ===== */
-.table-container {
-  overflow-x: auto;
-  border: 1px solid var(--sl-line);
-}
-
-table {
-  width: 100%;
-  min-width: 720px;
-  border-collapse: collapse;
-  text-align: left;
-}
-
-th,
-td {
-  padding: 0.8rem 1rem;
-  border-bottom: 1px solid var(--sl-line);
-  vertical-align: middle;
-}
-
-tbody tr:last-child td {
-  border-bottom: none;
-}
-
-th {
-  background: var(--sl-paper);
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--sl-muted);
-  white-space: nowrap;
-}
-
-tbody tr {
-  transition: background 0.2s ease;
-}
-
-tbody tr:hover {
-  background: var(--sl-paper);
-}
-
-td:first-child {
-  font-family: var(--sl-display);
-  font-size: 0.85rem;
-  color: var(--sl-muted);
-}
-
-td:last-child,
-th:last-child {
-  text-align: right;
-}
-
-.role-badge {
-  display: inline-block;
-  padding: 0.2rem 0.5rem;
-  border: 1px solid transparent;
-  border-radius: 0;
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  background: var(--sl-paper);
-  border-color: var(--sl-line);
-  color: var(--sl-ink);
-}
-
-.role-badge.ADMIN {
-  background: var(--sl-ink);
-  border-color: var(--sl-ink);
-  color: var(--sl-lime);
-}
-
-.role-badge.SUPPLIER {
-  background: var(--sl-lime);
-  border-color: var(--sl-lime);
-  color: var(--sl-ink);
-}
-
-.role-badge.BUYER {
-  background: var(--sl-paper);
-  border-color: var(--sl-line);
-  color: var(--sl-ink);
-}
-
-.ent-tag {
-  display: inline-block;
-  margin: 0.15rem 0.3rem 0.15rem 0;
-  padding: 0.2rem 0.45rem;
-  font-size: 0.8rem;
-  background: var(--sl-paper);
-  border: 1px solid var(--sl-line);
-  border-radius: 0;
-  white-space: nowrap;
-}
-
-/* ===== КАТЕГОРИИ ===== */
-.cat-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
+.admin {
   display: grid;
-  gap: 1px;
-  background: var(--sl-line);
-  border: 1px solid var(--sl-line);
+  gap: 1.25rem;
+  min-width: 0;
 }
 
-.cat-item {
+.admin > :deep(.app-tabs--underline) {
+  margin-bottom: -0.25rem;
+}
+
+.admin__empty {
+  padding: clamp(1.1rem, 2.5vw, 1.5rem);
+}
+
+/* таблица внутри секции: без второй рамки */
+.admin__table-wrap {
+  border: none;
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
+}
+
+.admin__table-wrap .ui-table {
+  min-width: 640px;
+}
+
+.admin__table-wrap .admin__table--narrow {
+  min-width: 420px;
+}
+
+.admin__id {
+  width: 4rem;
+  color: var(--c-muted);
+}
+
+.admin__strong {
+  font-weight: 700;
+  color: var(--c-text);
+  overflow-wrap: anywhere;
+}
+
+.admin__th-actions,
+.admin__td-actions {
+  width: 1%;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.admin__tags {
   display: flex;
-  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.admin__tag {
+  display: inline-flex;
   align-items: center;
-  gap: 1rem;
-  padding: 0.75rem 1rem;
-  background: #fff;
-  transition: background 0.2s ease;
-}
-
-.cat-item:hover {
-  background: var(--sl-paper);
-}
-
-.cat-item strong {
-  margin-right: 0.5rem;
-  font-family: var(--sl-display);
-  font-size: 0.8rem;
+  gap: 0.25rem;
+  padding: 0.15rem 0.55rem;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-full);
+  background: var(--c-surface-2);
+  font-size: var(--fs-xs);
   font-weight: 600;
-  color: var(--sl-leaf);
+  white-space: nowrap;
 }
 
-/* ===== МОНИТОРИНГ ===== */
+.admin__form {
+  display: grid;
+  gap: 1rem;
+}
+
+/* ── Мониторинг ────────────────────────────────── */
 .status-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 1px;
-  background: var(--sl-line);
-  border: 1px solid var(--sl-line);
+  gap: 1rem;
 }
 
 .status-card {
-  padding: 1.5rem;
-  background: #fff;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  background: var(--c-surface-2);
 }
 
-.status-card h3 {
-  margin: 0 0 0.75rem;
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--sl-muted);
-}
-
-.status-card p {
-  margin: 0;
-  font-family: var(--sl-display);
-  font-size: 1.05rem;
-  font-weight: 600;
-  color: var(--sl-ink);
-}
-
-.status-card p.error_text {
-  color: #b3261e;
-}
-
-.status-info {
+.status-card__icon {
   display: grid;
-  gap: 0.6rem;
-  margin-top: 1.25rem;
-  padding: 1rem 1.25rem;
-  background: var(--sl-paper);
-  border: 1px solid var(--sl-line);
-  border-left: 3px solid var(--sl-leaf);
-  color: var(--sl-muted);
+  place-items: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-md);
+  background: var(--c-surface-sunken);
+  color: var(--c-text-2);
 }
 
-.status-info p {
+.status-card__icon.is-success {
+  background: var(--c-success-bg);
+  color: var(--c-success);
+}
+
+.status-card__icon.is-danger {
+  background: var(--c-danger-bg);
+  color: var(--c-danger);
+}
+
+.status-card__body {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.status-card__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+}
+
+.status-card__title {
+  font-size: var(--fs-md);
+}
+
+.status-card__value {
+  color: var(--c-text-2);
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+
+.status-card__value.is-error {
+  color: var(--c-danger-600);
+  font-weight: 600;
+}
+
+.ops {
+  display: grid;
+  gap: 0.85rem;
   margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.status-info strong {
-  color: var(--sl-ink);
+.ops__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  color: var(--c-text-2);
+  font-size: var(--fs-sm);
 }
 
-/* ===== КНОПКИ ===== */
-.btn,
-.btn-small {
-  border-radius: 0;
-  font-weight: 700;
-  cursor: pointer;
-  background: transparent;
-  color: var(--sl-ink);
-  border: 1px solid var(--sl-ink);
-  white-space: nowrap;
-  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+.ops__icon {
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+  color: var(--c-muted);
 }
 
-.btn {
-  padding: 0.7rem 1.2rem;
+.ops__item strong {
+  color: var(--c-text);
 }
 
-.btn-small {
-  padding: 0.4rem 0.75rem;
-  font-size: 0.8rem;
-}
-
-.btn:hover,
-.btn-small:hover {
-  background: var(--sl-ink);
-  color: #fff;
-}
-
-.btn.primary-btn {
-  background: var(--sl-ink);
-  color: #fff;
-}
-
-.btn.primary-btn:hover {
-  background: var(--sl-leaf);
-  border-color: var(--sl-leaf);
-}
-
-.btn-small.btn-danger {
-  color: #b3261e;
-  border-color: #b3261e;
-}
-
-.btn-small.btn-danger:hover {
-  background: #b3261e;
-  color: #fff;
-}
-
-.btn:focus-visible,
-.btn-small:focus-visible {
-  outline: 2px solid var(--sl-leaf);
-  outline-offset: 2px;
-}
-
-/* ===== ТОСТ ===== */
-.admin-toast {
-  position: fixed;
-  top: 80px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 2000;
-  max-width: calc(100vw - 2rem);
-  padding: 0.9rem 1.25rem;
-  background: #fff;
-  border: 1px solid var(--sl-line);
-  border-radius: 0;
-  font-weight: 700;
-  box-shadow: 0 24px 48px rgba(20, 33, 15, 0.18);
-}
-
-.admin-toast.success {
-  border-left: 4px solid var(--sl-leaf);
-  color: var(--sl-ink);
-}
-
-.admin-toast.error {
-  border-left: 4px solid #b3261e;
-  background: #fbeaea;
-  color: #b3261e;
-}
-
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.25s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-
-@media (max-width: 520px) {
-  .admin-content.card {
-    margin: 1rem;
-  }
-
-  .cat-item {
-    flex-wrap: wrap;
-  }
+.ops__item code {
+  padding: 0.05rem 0.35rem;
+  border-radius: var(--r-xs);
+  background: var(--c-surface-sunken);
+  font-size: 0.85em;
 }
 </style>

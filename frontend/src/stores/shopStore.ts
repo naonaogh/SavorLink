@@ -119,11 +119,9 @@ export function useShopStore() {
     region: e.region || '',
     city: e.city || null,
     locations: [e.region, e.city].filter(Boolean).join(', '),
-    description: e.description || 'Надёжный поставщик качественной продукции.',
+    description: e.description || '',
     products: (e.products || []).map(mapProduct),
-    since: e.created_at ? new Date(e.created_at).getFullYear().toString() : '2023',
-    minOrder: 'от 50 000 ₽',
-    delivery: 'Завтра 06:00–10:00',
+    since: e.created_at ? new Date(e.created_at).getFullYear().toString() : undefined,
     users: e.users || [],
   })
 
@@ -569,19 +567,15 @@ export function useShopStore() {
       }
     },
     submitReview: async (id: number, rating: number, comment: string) => {
-      try {
-        await api.post(`/enterprises/${id}/reviews`, {
-          target_enterprise_id: id,
-          rating,
-          comment
-        })
-        const detailRes = await api.get(`/enterprises/${id}`)
-        state.currentSupplier = mapSupplier(detailRes.data)
-        const reviewsRes = await api.get(`/enterprises/${id}/reviews`)
-        state.supplierReviews = reviewsRes.data
-      } catch (err: any) {
-        throw err
-      }
+      await api.post(`/enterprises/${id}/reviews`, {
+        target_enterprise_id: id,
+        rating,
+        comment
+      })
+      const detailRes = await api.get(`/enterprises/${id}`)
+      state.currentSupplier = mapSupplier(detailRes.data)
+      const reviewsRes = await api.get(`/enterprises/${id}/reviews`)
+      state.supplierReviews = reviewsRes.data
     },
     toggleComparison: (id: number) => {
       const idx = state.comparisonSupplierIds.indexOf(id)

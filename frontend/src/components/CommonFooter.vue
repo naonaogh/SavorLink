@@ -1,186 +1,166 @@
 <script setup lang="ts">
+import { RouterLink } from 'vue-router'
+import AppIcon from '@/components/ui/AppIcon.vue'
+
 const year = new Date().getFullYear()
+
+const columns = [
+  {
+    title: 'Навигация',
+    links: [
+      { to: '/catalog', label: 'Каталог' },
+      { to: '/favorites', label: 'Избранное' },
+      { to: '/profile', label: 'Профиль' },
+    ],
+  },
+  {
+    title: 'Сервисы',
+    links: [
+      { to: '/chat', label: 'Чат' },
+      { to: '/analytics', label: 'Аналитика' },
+      { to: '/documents', label: 'Документы' },
+    ],
+  },
+  {
+    title: 'Платформа',
+    links: [
+      { to: '/features', label: 'Возможности' },
+      { to: '/reviews', label: 'Отзывы' },
+    ],
+  },
+]
 </script>
 
 <template>
-  <footer class="common-footer">
-    <div class="footer-inner">
-      <div class="footer-top">
-        <div class="brand-block">
-          <div class="brand">
-            <span class="brand-mark">S</span>
-            <span class="brand-name">SavorLink</span>
-          </div>
-          <p class="brand-text">
+  <footer class="site-footer">
+    <div class="ui-container">
+      <div class="site-footer__top">
+        <div class="site-footer__brand">
+          <RouterLink to="/" class="footer-logo" aria-label="SavorLink — на главную">
+            <span class="footer-logo__mark"><AppIcon name="leaf" :size="18" :stroke-width="2.2" /></span>
+            <span class="footer-logo__text">SavorLink</span>
+          </RouterLink>
+          <p class="site-footer__about">
             Платформа для удобной работы ресторанов, поставщиков и документов в одном месте.
           </p>
         </div>
 
-        <nav class="footer-col" aria-label="Навигация">
-          <h3>Навигация</h3>
-          <router-link to="/catalog">Каталог</router-link>
-          <router-link to="/favorites">Избранное</router-link>
-          <router-link to="/profile">Профиль</router-link>
-        </nav>
-
-        <nav class="footer-col" aria-label="Сервисы">
-          <h3>Сервисы</h3>
-          <router-link to="/chat">Чат</router-link>
-          <router-link to="/analytics">Аналитика</router-link>
-          <router-link to="/documents">Документы</router-link>
+        <nav v-for="column in columns" :key="column.title" class="site-footer__col" :aria-label="column.title">
+          <h2 class="site-footer__title">{{ column.title }}</h2>
+          <RouterLink v-for="link in column.links" :key="link.to" :to="link.to" class="site-footer__link">
+            {{ link.label }}
+          </RouterLink>
         </nav>
       </div>
 
-      <div class="footer-bottom">
+      <div class="site-footer__bottom">
         <span>© {{ year }} SavorLink</span>
-        <span class="footer-tag">Поставщики — Рестораны</span>
+        <span>B2B-платформа для ресторанов и поставщиков</span>
       </div>
     </div>
   </footer>
 </template>
 
 <style scoped>
-.common-footer {
-  width: 100%;
-  max-width: 1200px;
-  margin: auto auto 0;
-  padding: 1.25rem 1rem 1.5rem;
+.site-footer {
+  margin-top: auto;
+  background: var(--c-brand-900);
+  color: rgba(255, 255, 255, 0.72);
 }
 
-.footer-inner {
-  color: #fff;
-  border-top: 3px solid var(--sl-lime);
-  background:
-    repeating-linear-gradient(135deg, rgba(198, 236, 154, 0.05) 0 1px, transparent 1px 14px),
-    var(--sl-ink);
-}
-
-.footer-top {
+.site-footer__top {
   display: grid;
-  grid-template-columns: 1.6fr 1fr 1fr;
+  grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr));
   gap: 2rem;
-  padding: clamp(1.5rem, 4vw, 2.75rem);
+  padding-block: clamp(2.5rem, 5vw, 3.5rem);
 }
 
-/* БРЕНД */
-.brand-block {
-  max-width: 420px;
+.site-footer__brand {
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+  max-width: 360px;
 }
 
-.brand {
+.footer-logo {
   display: inline-flex;
   align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
+  gap: 0.6rem;
+  justify-self: start;
+  border-radius: var(--r-sm);
 }
 
-.brand-mark {
-  width: 2.25rem;
-  height: 2.25rem;
+.footer-logo__mark {
   display: grid;
   place-items: center;
-  background: var(--sl-lime);
-  color: var(--sl-ink);
-  font-family: var(--sl-display);
-  font-weight: 700;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--c-accent);
+  color: var(--c-brand-950);
 }
 
-.brand-name {
-  font-family: var(--sl-display);
-  font-size: 1.05rem;
-  font-weight: 600;
+.footer-logo__text {
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #fff;
 }
 
-.brand-text {
-  margin: 0;
-  color: rgba(255, 255, 255, 0.7);
+.site-footer__about {
+  font-size: var(--fs-sm);
   line-height: 1.6;
 }
 
-/* КОЛОНКИ */
-.footer-col {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.55rem;
+.site-footer__col {
+  display: grid;
+  align-content: start;
+  gap: 0.6rem;
 }
 
-.footer-col h3 {
-  margin: 0 0 0.5rem;
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--sl-lime);
-}
-
-.footer-col a {
-  position: relative;
-  color: rgba(255, 255, 255, 0.82);
-  transition: color 0.2s ease, padding-left 0.2s ease;
-}
-
-.footer-col a::before {
-  content: '→';
-  position: absolute;
-  left: 0;
-  opacity: 0;
-  color: var(--sl-lime);
-  transition: opacity 0.2s ease;
-}
-
-.footer-col a:hover {
+.site-footer__title {
+  margin-bottom: 0.25rem;
   color: #fff;
-  padding-left: 1.35rem;
-}
-
-.footer-col a:hover::before {
-  opacity: 1;
-}
-
-.footer-col a:focus-visible {
-  outline: 2px solid var(--sl-lime);
-  outline-offset: 3px;
-}
-
-/* НИЖНЯЯ СТРОКА */
-.footer-bottom {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1rem clamp(1.5rem, 4vw, 2.75rem);
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
-  font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.55);
-}
-
-.footer-tag {
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  font-size: 0.7rem;
+  font-size: var(--fs-sm);
   font-weight: 700;
+  letter-spacing: 0;
+}
+
+.site-footer__link {
+  justify-self: start;
+  font-size: var(--fs-sm);
+  border-radius: var(--r-xs);
+  transition: color var(--dur) var(--ease);
+}
+
+.site-footer__link:hover {
+  color: var(--c-accent);
+}
+
+.site-footer__bottom {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding-block: 1.25rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: var(--fs-xs);
+  color: rgba(255, 255, 255, 0.5);
 }
 
 @media (max-width: 860px) {
-  .footer-top {
-    grid-template-columns: 1fr 1fr;
+  .site-footer__top {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .brand-block {
+  .site-footer__brand {
     grid-column: 1 / -1;
   }
 }
 
-@media (max-width: 768px) {
-  .common-footer {
-    padding: 1rem 0.75rem 1rem;
-  }
-}
-
 @media (max-width: 480px) {
-  .footer-bottom {
-    flex-direction: column;
-    gap: 0.35rem;
+  .site-footer__top {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 </style>

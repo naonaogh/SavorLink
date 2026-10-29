@@ -1,0 +1,107 @@
+/*
+ * SavorLink — дизайн-токены.
+ * Все цвета, радиусы, тени и типографика страниц берутся отсюда.
+ */
+:root {
+  /* ── Нейтральные (тёплые) ───────────────────── */
+  --c-bg: #f6f4ef;
+  --c-surface: #ffffff;
+  --c-surface-2: #fbfaf7;
+  --c-surface-sunken: #f1eee7;
+  --c-border: #e7e2d7;
+  --c-border-strong: #d5cdbd;
+
+  --c-text: #17201b;
+  --c-text-2: #44503f;
+  --c-muted: #737a6d;
+  --c-placeholder: #9ca094;
+
+  /* ── Бренд: глубокий зелёный ────────────────── */
+  --c-brand-950: #0b1f17;
+  --c-brand-900: #0f2a1f;
+  --c-brand-800: #14382a;
+  --c-brand-700: #1b4b37;
+  --c-brand-600: #235f46;
+  --c-brand-100: #e3ece6;
+  --c-brand-50: #f0f5f1;
+
+  /* ── Акцент: яркий зелёный ──────────────────── */
+  --c-accent: #2fb862;
+  --c-accent-600: #23994f;
+  --c-accent-700: #1c7c40;
+  --c-accent-200: #b8e8c9;
+  --c-accent-100: #d9f3e2;
+  --c-accent-50: #eefaf2;
+
+  /* ── Статусы ────────────────────────────────── */
+  --c-success: #1f8a4c;
+  --c-success-bg: #e8f6ee;
+  --c-warning: #a3620a;
+  --c-warning-bg: #fdf3e1;
+  --c-danger: #c03a2b;
+  --c-danger-600: #a32f22;
+  --c-danger-bg: #fcebe9;
+  --c-info: #2a5bd7;
+  --c-info-bg: #eaf0fd;
+
+  /* ── Радиусы ────────────────────────────────── */
+  --r-xs: 6px;
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 22px;
+  --r-full: 999px;
+
+  /* ── Тени (сдержанные) ──────────────────────── */
+  --sh-xs: 0 1px 2px rgba(23, 32, 27, 0.05);
+  --sh-sm: 0 1px 2px rgba(23, 32, 27, 0.04), 0 2px 6px rgba(23, 32, 27, 0.05);
+  --sh-md: 0 2px 4px rgba(23, 32, 27, 0.04), 0 10px 24px -8px rgba(23, 32, 27, 0.12);
+  --sh-lg: 0 24px 56px -20px rgba(23, 32, 27, 0.28);
+  --sh-focus: 0 0 0 3px rgba(47, 184, 98, 0.32);
+
+  /* ── Типографика ────────────────────────────── */
+  --font-sans: 'Manrope', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.875rem;
+  --fs-md: 1rem;
+  --fs-lg: 1.125rem;
+  --fs-xl: 1.375rem;
+  --fs-2xl: 1.75rem;
+  --fs-3xl: clamp(1.75rem, 3vw, 2.25rem);
+  --fs-display: clamp(2.25rem, 5vw, 3.75rem);
+
+  /* ── Раскладка ──────────────────────────────── */
+  --container: 1240px;
+  --gutter: 1.5rem;
+  --header-h: 68px;
+
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --dur: 0.18s;
+
+  /* ── Совместимость со старыми переменными (--sl-*) ── */
+  --sl-ink: var(--c-brand-800);
+  --sl-forest: var(--c-brand-700);
+  --sl-leaf: var(--c-accent-600);
+  --sl-lime: var(--c-accent-100);
+  --sl-paper: var(--c-surface-2);
+  --sl-line: var(--c-border);
+  --sl-text: var(--c-text);
+  --sl-muted: var(--c-muted);
+  --sl-display: var(--font-sans);
+  --sl-green-1: var(--c-accent-100);
+  --sl-green-2: var(--c-accent-200);
+  --sl-green-3: var(--c-accent-600);
+  --sl-green-4: var(--c-brand-800);
+  --sl-green-soft: var(--c-accent-50);
+  --sl-surface: var(--c-surface);
+  --sl-surface-strong: var(--c-surface);
+  --sl-border: var(--c-border);
+  --sl-shadow: var(--sh-sm);
+}
+
+@media (max-width: 768px) {
+  :root {
+    --gutter: 1rem;
+    --header-h: 60px;
+  }
+}

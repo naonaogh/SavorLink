@@ -1,7 +1,21 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import api from '@/services/apiClient'
+import api, { getApiErrorMessage } from '@/services/apiClient'
 import { useAuthStore } from '@/stores/authStore'
+import {
+  AppAvatar,
+  AppBadge,
+  AppButton,
+  AppIcon,
+  AppSection,
+  EmptyState,
+  ErrorState,
+  FormField,
+  LoadingState,
+  PageHeader,
+} from '@/components/ui'
+import { useToast } from '@/composables/useToast'
+import { formatDate } from '@/utils/format'
 
 type UserProfile = {
   id: number
@@ -25,17 +39,13 @@ type EnterpriseProfile = {
   email?: string | null
 }
 
-type NoticeType = 'success' | 'error'
-
 const authStore = useAuthStore()
+const toast = useToast()
 
 const user = ref<UserProfile | null>(null)
 const enterprise = ref<EnterpriseProfile | null>(null)
 const loading = ref(true)
 const error = ref('')
-
-const notice = ref<{ text: string; type: NoticeType } | null>(null)
-let noticeTimer: number | null = null
 
 const isEditingAccount = ref(false)
 const savingAccount = ref(false)
@@ -75,21 +85,43 @@ const editForm = ref<EnterpriseProfile>({
   email: '',
 })
 
-const showNotice = (text: string, type: NoticeType = 'success') => {
-  notice.value = { text, type }
-  if (noticeTimer) {
-    clearTimeout(noticeTimer)
-  }
-  noticeTimer = window.setTimeout(() => {
-    notice.value = null
-  }, 5000)
+/* ── Отображение ───────────────────────────────── */
+const ROLE_META: Record<string, { label: string; tone: 'brand' | 'accent' | 'info' | 'neutral' }> = {
+  BUYER: { label: 'Покупатель', tone: 'accent' },
+  SUPPLIER: { label: 'Поставщик', tone: 'brand' },
+  ADMIN: { label: 'Администратор', tone: 'info' },
 }
 
-const createdAt = computed(() => {
-  if (!user.value?.created_at) return '—'
-  return new Date(user.value.created_at).toLocaleDateString('ru-RU')
+const roleMeta = computed(() => {
+  const role = user.value?.role ?? ''
+  return ROLE_META[role] ?? { label: role || '—', tone: 'neutral' as const }
 })
 
+const createdAt = computed(() => formatDate(user.value?.created_at, 'long'))
+
+const fullName = computed(() => {
+  const name = [user.value?.first_name, user.value?.last_name].filter(Boolean).join(' ')
+  return name || user.value?.email || ''
+})
+
+const passwordMismatch = computed(
+  () =>
+    !!accountForm.value.password_confirm && accountForm.value.password !== accountForm.value.password_confirm,
+)
+
+/* поиск по уже загруженному списку предприятий */
+const joinQuery = ref('')
+const joiningId = ref<number | null>(null)
+
+const filteredEnterprises = computed(() => {
+  const q = joinQuery.value.trim().toLowerCase()
+  if (!q) return joinableEnterprises.value
+  return joinableEnterprises.value.filter((ent) =>
+    [ent.short_name, ent.inn, ent.region, ent.city].some((v) => (v ?? '').toLowerCase().includes(q)),
+  )
+})
+
+/* ── Аккаунт ───────────────────────────────────── */
 const startEditAccount = () => {
   if (!user.value) return
   accountForm.value = {
@@ -116,7 +148,7 @@ const saveAccount = async () => {
 
   const wantsPasswordUpdate = !!accountForm.value.password || !!accountForm.value.old_password
   if (wantsPasswordUpdate && accountForm.value.password !== accountForm.value.password_confirm) {
-    showNotice('Новый пароль и подтверждение не совпадают', 'error')
+    toast.error('Новый пароль и подтверждение не совпадают')
     return
   }
 
@@ -138,21 +170,22 @@ const saveAccount = async () => {
     user.value = res.data
 
     if (authStore.token) {
-      authStore.setAuth(authStore.token, { ...(authStore.user ?? {}), ...res.data })
+      authStore.setAuth(authStore.token, { ...authStore.user, ...res.data })
     }
 
     isEditingAccount.value = false
     accountForm.value.old_password = ''
     accountForm.value.password = ''
     accountForm.value.password_confirm = ''
-    showNotice('Данные аккаунта успешно сохранены')
-  } catch (e: any) {
-    showNotice(e.response?.data?.detail || 'Ошибка при сохранении профиля', 'error')
+    toast.success('Данные аккаунта сохранены')
+  } catch (e) {
+    toast.error('Не удалось сохранить профиль', getApiErrorMessage(e, 'Ошибка при сохранении профиля'))
   } finally {
     savingAccount.value = false
   }
 }
 
+/* ── Предприятие ───────────────────────────────── */
 const startEditEnterprise = () => {
   if (enterprise.value) {
     editForm.value = { ...enterprise.value }
@@ -167,9 +200,9 @@ const createEnterprise = async () => {
     enterprise.value = res.data
     isCreatingEnterprise.value = false
     if (user.value) user.value.enterprise_id = res.data.id
-    showNotice('Предприятие создано и привязано к аккаунту')
-  } catch (e: any) {
-    showNotice(e.response?.data?.detail || 'Ошибка при создании предприятия', 'error')
+    toast.success('Предприятие создано и привязано к аккаунту')
+  } catch (e) {
+    toast.error('Не удалось создать предприятие', getApiErrorMessage(e, 'Ошибка при создании предприятия'))
   } finally {
     savingEnterprise.value = false
   }
@@ -178,11 +211,12 @@ const createEnterprise = async () => {
 const startJoinEnterprise = async () => {
   isJoiningEnterprise.value = true
   loadingEnterprises.value = true
+  joinQuery.value = ''
   try {
     const res = await api.get('/enterprises')
     joinableEnterprises.value = res.data
   } catch {
-    showNotice('Ошибка при загрузке списка предприятий', 'error')
+    toast.error('Ошибка при загрузке списка предприятий')
   } finally {
     loadingEnterprises.value = false
   }
@@ -195,12 +229,18 @@ const joinEnterprise = async (id: number) => {
     enterprise.value = res.data
     isJoiningEnterprise.value = false
     if (user.value) user.value.enterprise_id = res.data.id
-    showNotice('Предприятие успешно привязано')
-  } catch (e: any) {
-    showNotice(e.response?.data?.detail || 'Ошибка при присоединении к предприятию', 'error')
+    toast.success('Предприятие успешно привязано')
+  } catch (e) {
+    toast.error('Не удалось присоединиться', getApiErrorMessage(e, 'Ошибка при присоединении к предприятию'))
   } finally {
     savingEnterprise.value = false
   }
+}
+
+const onJoin = async (id: number) => {
+  joiningId.value = id
+  await joinEnterprise(id)
+  joiningId.value = null
 }
 
 const saveEnterprise = async () => {
@@ -210,9 +250,9 @@ const saveEnterprise = async () => {
     const res = await api.patch(`/enterprises/${enterprise.value.id}`, editForm.value)
     enterprise.value = res.data
     isEditingEnterprise.value = false
-    showNotice('Данные предприятия обновлены')
-  } catch (e: any) {
-    showNotice(e.response?.data?.detail || 'Ошибка при сохранении предприятия', 'error')
+    toast.success('Данные предприятия обновлены')
+  } catch (e) {
+    toast.error('Не удалось сохранить предприятие', getApiErrorMessage(e, 'Ошибка при сохранении предприятия'))
   } finally {
     savingEnterprise.value = false
   }
@@ -233,8 +273,8 @@ const loadProfile = async () => {
     } else {
       enterprise.value = null
     }
-  } catch (e: any) {
-    error.value = e.response?.data?.detail || 'Ошибка загрузки профиля'
+  } catch (e) {
+    error.value = getApiErrorMessage(e, 'Ошибка загрузки профиля')
   } finally {
     loading.value = false
   }
@@ -246,596 +286,676 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="profile-page">
-    <main class="profile-main">
-      <Transition name="profile-toast">
-        <div v-if="notice" class="notice" :class="notice.type === 'success' ? 'notice--success' : 'notice--error'">
-          {{ notice.text }}
-        </div>
-      </Transition>
+  <div class="profile">
+    <PageHeader
+      eyebrow="Личный кабинет"
+      title="Профиль"
+      description="Данные аккаунта и предприятия, от имени которого вы работаете на платформе."
+    >
+      <template #actions>
+        <AppButton variant="secondary" icon="refresh" :loading="loading && !!user" @click="loadProfile">
+          Обновить
+        </AppButton>
+      </template>
+    </PageHeader>
 
-      <section class="profile-card">
-        <div class="profile-card-head">
-          <div>
-            <p class="kicker">Личные данные</p>
-            <h1 class="profile-title">Профиль</h1>
+    <LoadingState v-if="loading && !user" variant="skeleton" :rows="6" label="Загружаем профиль…" />
+
+    <ErrorState v-else-if="error" :message="error" :retrying="loading" @retry="loadProfile" />
+
+    <div v-else-if="user" class="profile__grid">
+      <!-- ===== АККАУНТ ===== -->
+      <AppSection title="Аккаунт" description="Контактные данные и вход в систему">
+        <template v-if="!isEditingAccount" #actions>
+          <AppButton variant="secondary" size="sm" icon="pencil" @click="startEditAccount">Изменить</AppButton>
+        </template>
+
+        <form v-if="isEditingAccount" class="form" @submit.prevent="saveAccount">
+          <div class="form__row">
+            <FormField label="Имя" v-slot="{ id, describedBy, invalid }">
+              <input
+                :id="id"
+                v-model="accountForm.first_name"
+                type="text"
+                placeholder="Иван"
+                autocomplete="given-name"
+                :aria-describedby="describedBy"
+                :aria-invalid="invalid"
+              />
+            </FormField>
+            <FormField label="Фамилия" v-slot="{ id, describedBy, invalid }">
+              <input
+                :id="id"
+                v-model="accountForm.last_name"
+                type="text"
+                placeholder="Иванов"
+                autocomplete="family-name"
+                :aria-describedby="describedBy"
+                :aria-invalid="invalid"
+              />
+            </FormField>
           </div>
-          <button type="button" class="refresh-btn" @click="loadProfile">Обновить</button>
-        </div>
+          <FormField label="Email" required v-slot="{ id, describedBy, invalid }">
+            <input
+              :id="id"
+              v-model="accountForm.email"
+              type="email"
+              required
+              autocomplete="email"
+              :aria-describedby="describedBy"
+              :aria-invalid="invalid"
+            />
+          </FormField>
+          <FormField label="Телефон" v-slot="{ id, describedBy, invalid }">
+            <input
+              :id="id"
+              v-model="accountForm.phone"
+              type="tel"
+              placeholder="+7 (999) 123-45-67"
+              autocomplete="tel"
+              :aria-describedby="describedBy"
+              :aria-invalid="invalid"
+            />
+          </FormField>
 
-        <p v-if="loading" class="state-text">Загрузка данных...</p>
-        <p v-else-if="error" class="state-text state-text--error">{{ error }}</p>
-
-        <div v-else-if="user" class="profile-grid">
-          <article class="info-card">
-            <div class="card-header">
-              <h2 class="info-title"><span class="card-index" aria-hidden="true">01</span>Аккаунт</h2>
-              <button v-if="!isEditingAccount" type="button" class="edit-btn" @click="startEditAccount">
-                Изменить
-              </button>
-            </div>
-
-            <form v-if="isEditingAccount" class="edit-form" @submit.prevent="saveAccount">
-              <div class="form-group">
-                <label>Имя</label>
-                <input v-model="accountForm.first_name" type="text" placeholder="Иван" />
-              </div>
-              <div class="form-group">
-                <label>Фамилия</label>
-                <input v-model="accountForm.last_name" type="text" placeholder="Иванов" />
-              </div>
-              <div class="form-group">
-                <label>Email</label>
-                <input v-model="accountForm.email" type="email" required />
-              </div>
-              <div class="form-group">
-                <label>Телефон</label>
-                <input v-model="accountForm.phone" type="text" placeholder="+7 (999) 123-45-67" />
-              </div>
-              <div class="form-group">
-                <label>Текущий пароль (если меняете пароль)</label>
-                <input v-model="accountForm.old_password" type="password" autocomplete="current-password" />
-              </div>
-              <div class="form-group">
-                <label>Новый пароль</label>
-                <input v-model="accountForm.password" type="password" autocomplete="new-password" />
-              </div>
-              <div class="form-group">
-                <label>Подтверждение нового пароля</label>
-                <input v-model="accountForm.password_confirm" type="password" autocomplete="new-password" />
-              </div>
-
-              <div class="edit-actions">
-                <button type="button" class="cancel-btn" @click="cancelEditAccount">Отмена</button>
-                <button type="submit" class="save-btn" :disabled="savingAccount">
-                  {{ savingAccount ? 'Сохранение...' : 'Сохранить' }}
-                </button>
-              </div>
-            </form>
-
-            <dl v-else class="info-list">
-              <div class="info-row"><dt>ID</dt><dd>{{ user.id }}</dd></div>
-              <div class="info-row"><dt>Имя</dt><dd>{{ user.first_name || '—' }}</dd></div>
-              <div class="info-row"><dt>Фамилия</dt><dd>{{ user.last_name || '—' }}</dd></div>
-              <div class="info-row"><dt>Email</dt><dd>{{ user.email }}</dd></div>
-              <div class="info-row"><dt>Телефон</dt><dd>{{ user.phone || '—' }}</dd></div>
-              <div class="info-row"><dt>Роль</dt><dd>{{ user.role }}</dd></div>
-              <div class="info-row"><dt>Дата регистрации</dt><dd>{{ createdAt }}</dd></div>
-            </dl>
-          </article>
-
-          <article class="info-card">
-            <div class="card-header">
-              <h2 class="info-title"><span class="card-index" aria-hidden="true">02</span>Предприятие</h2>
-              <button
-                v-if="user.role === 'SUPPLIER' && enterprise && !isEditingEnterprise"
-                type="button"
-                class="edit-btn"
-                @click="startEditEnterprise"
+          <fieldset class="form__group">
+            <legend class="form__legend">
+              <AppIcon name="lock" :size="16" />
+              Смена пароля
+            </legend>
+            <p class="form__note">Заполните, только если хотите сменить пароль.</p>
+            <FormField label="Текущий пароль" v-slot="{ id, describedBy, invalid }">
+              <input
+                :id="id"
+                v-model="accountForm.old_password"
+                type="password"
+                autocomplete="current-password"
+                :aria-describedby="describedBy"
+                :aria-invalid="invalid"
+              />
+            </FormField>
+            <div class="form__row">
+              <FormField label="Новый пароль" v-slot="{ id, describedBy, invalid }">
+                <input
+                  :id="id"
+                  v-model="accountForm.password"
+                  type="password"
+                  autocomplete="new-password"
+                  :aria-describedby="describedBy"
+                  :aria-invalid="invalid"
+                />
+              </FormField>
+              <FormField
+                label="Подтверждение"
+                :error="passwordMismatch ? 'Пароли не совпадают' : undefined"
+                v-slot="{ id, describedBy, invalid }"
               >
-                Изменить
-              </button>
+                <input
+                  :id="id"
+                  v-model="accountForm.password_confirm"
+                  type="password"
+                  autocomplete="new-password"
+                  :aria-describedby="describedBy"
+                  :aria-invalid="invalid"
+                />
+              </FormField>
+            </div>
+          </fieldset>
+
+          <div class="form__actions">
+            <AppButton variant="ghost" :disabled="savingAccount" @click="cancelEditAccount">Отмена</AppButton>
+            <AppButton type="submit" icon="check" :loading="savingAccount">Сохранить</AppButton>
+          </div>
+        </form>
+
+        <template v-else>
+          <div class="identity">
+            <AppAvatar :name="fullName" :size="48" />
+            <div class="identity__text">
+              <p class="identity__name">{{ fullName }}</p>
+              <AppBadge :tone="roleMeta.tone" size="sm">{{ roleMeta.label }}</AppBadge>
+            </div>
+          </div>
+
+          <dl class="facts">
+            <div class="facts__row">
+              <dt>ID</dt>
+              <dd class="ui-num">{{ user.id }}</dd>
+            </div>
+            <div class="facts__row">
+              <dt>Имя</dt>
+              <dd>{{ user.first_name || '—' }}</dd>
+            </div>
+            <div class="facts__row">
+              <dt>Фамилия</dt>
+              <dd>{{ user.last_name || '—' }}</dd>
+            </div>
+            <div class="facts__row">
+              <dt>Email</dt>
+              <dd>{{ user.email || '—' }}</dd>
+            </div>
+            <div class="facts__row">
+              <dt>Телефон</dt>
+              <dd class="ui-num">{{ user.phone || '—' }}</dd>
+            </div>
+            <div class="facts__row">
+              <dt>Роль</dt>
+              <dd>
+                <AppBadge :tone="roleMeta.tone" size="sm">{{ roleMeta.label }}</AppBadge>
+              </dd>
+            </div>
+            <div class="facts__row">
+              <dt>Дата регистрации</dt>
+              <dd>
+                <time :datetime="user.created_at">{{ createdAt }}</time>
+              </dd>
+            </div>
+          </dl>
+        </template>
+      </AppSection>
+
+      <!-- ===== ПРЕДПРИЯТИЕ ===== -->
+      <AppSection
+        title="Предприятие"
+        :description="
+          isJoiningEnterprise
+            ? 'Выберите предприятие, к которому хотите присоединиться'
+            : isCreatingEnterprise
+              ? 'Новая карточка компании'
+              : 'Реквизиты компании'
+        "
+      >
+        <template v-if="user.role === 'SUPPLIER' && enterprise && !isEditingEnterprise" #actions>
+          <AppButton variant="secondary" size="sm" icon="pencil" @click="startEditEnterprise">Изменить</AppButton>
+        </template>
+
+        <!-- предприятие есть -->
+        <template v-if="enterprise">
+          <form v-if="isEditingEnterprise" class="form" @submit.prevent="saveEnterprise">
+            <FormField label="Название" required v-slot="{ id, describedBy, invalid }">
+              <input
+                :id="id"
+                v-model="editForm.short_name"
+                type="text"
+                required
+                :aria-describedby="describedBy"
+                :aria-invalid="invalid"
+              />
+            </FormField>
+            <FormField label="ИНН" required v-slot="{ id, describedBy, invalid }">
+              <input
+                :id="id"
+                v-model="editForm.inn"
+                type="text"
+                inputmode="numeric"
+                required
+                :aria-describedby="describedBy"
+                :aria-invalid="invalid"
+              />
+            </FormField>
+            <div class="form__row">
+              <FormField label="Регион" required v-slot="{ id, describedBy, invalid }">
+                <input
+                  :id="id"
+                  v-model="editForm.region"
+                  type="text"
+                  required
+                  :aria-describedby="describedBy"
+                  :aria-invalid="invalid"
+                />
+              </FormField>
+              <FormField label="Город" v-slot="{ id, describedBy, invalid }">
+                <input
+                  :id="id"
+                  v-model="editForm.city"
+                  type="text"
+                  placeholder="Необязательно"
+                  :aria-describedby="describedBy"
+                  :aria-invalid="invalid"
+                />
+              </FormField>
+            </div>
+            <div class="form__row">
+              <FormField label="Телефон" v-slot="{ id, describedBy, invalid }">
+                <input
+                  :id="id"
+                  v-model="editForm.phone"
+                  type="tel"
+                  :aria-describedby="describedBy"
+                  :aria-invalid="invalid"
+                />
+              </FormField>
+              <FormField label="Email" v-slot="{ id, describedBy, invalid }">
+                <input
+                  :id="id"
+                  v-model="editForm.email"
+                  type="email"
+                  :aria-describedby="describedBy"
+                  :aria-invalid="invalid"
+                />
+              </FormField>
+            </div>
+            <div class="form__actions">
+              <AppButton variant="ghost" :disabled="savingEnterprise" @click="isEditingEnterprise = false">
+                Отмена
+              </AppButton>
+              <AppButton type="submit" icon="check" :loading="savingEnterprise">Сохранить</AppButton>
+            </div>
+          </form>
+
+          <template v-else>
+            <div class="identity">
+              <AppAvatar :name="enterprise.short_name" :size="48" tone="accent" />
+              <div class="identity__text">
+                <p class="identity__name">{{ enterprise.short_name }}</p>
+                <p class="identity__sub ui-num">ИНН {{ enterprise.inn || '—' }}</p>
+              </div>
             </div>
 
-            <div v-if="enterprise" class="card-body">
-              <form v-if="isEditingEnterprise" @submit.prevent="saveEnterprise" class="edit-form">
-                <div class="form-group">
-                  <label>Название</label>
-                  <input v-model="editForm.short_name" type="text" required />
-                </div>
-                <div class="form-group">
-                  <label>ИНН</label>
-                  <input v-model="editForm.inn" type="text" required />
-                </div>
-                <div class="form-group">
-                  <label>Регион</label>
-                  <input v-model="editForm.region" type="text" required />
-                </div>
-                <div class="form-group">
-                  <label>Город</label>
-                  <input v-model="editForm.city" type="text" placeholder="Если нужно, укажите город" />
-                </div>
-                <div class="form-group">
-                  <label>Телефон</label>
-                  <input v-model="editForm.phone" type="text" />
-                </div>
-                <div class="form-group">
-                  <label>Email</label>
-                  <input v-model="editForm.email" type="email" />
-                </div>
-                <div class="edit-actions">
-                  <button type="button" @click="isEditingEnterprise = false" class="cancel-btn">Отмена</button>
-                  <button type="submit" class="save-btn" :disabled="savingEnterprise">
-                    {{ savingEnterprise ? 'Сохранение...' : 'Сохранить' }}
-                  </button>
-                </div>
-              </form>
+            <dl class="facts">
+              <div class="facts__row">
+                <dt>Название</dt>
+                <dd>{{ enterprise.short_name || '—' }}</dd>
+              </div>
+              <div class="facts__row">
+                <dt>ИНН</dt>
+                <dd class="ui-num">{{ enterprise.inn || '—' }}</dd>
+              </div>
+              <div class="facts__row">
+                <dt>Регион</dt>
+                <dd>{{ enterprise.region || '—' }}</dd>
+              </div>
+              <div class="facts__row">
+                <dt>Город</dt>
+                <dd>{{ enterprise.city || '—' }}</dd>
+              </div>
+              <div class="facts__row">
+                <dt>Телефон</dt>
+                <dd class="ui-num">{{ enterprise.phone || '—' }}</dd>
+              </div>
+              <div class="facts__row">
+                <dt>Email</dt>
+                <dd>{{ enterprise.email || '—' }}</dd>
+              </div>
+            </dl>
+          </template>
+        </template>
 
-              <dl v-else class="info-list">
-                <div class="info-row"><dt>Название</dt><dd>{{ enterprise.short_name }}</dd></div>
-                <div class="info-row"><dt>ИНН</dt><dd>{{ enterprise.inn }}</dd></div>
-                <div class="info-row"><dt>Регион</dt><dd>{{ enterprise.region }}</dd></div>
-                <div class="info-row"><dt>Город</dt><dd>{{ enterprise.city || '—' }}</dd></div>
-                <div class="info-row"><dt>Телефон</dt><dd>{{ enterprise.phone || '—' }}</dd></div>
-                <div class="info-row"><dt>Email</dt><dd>{{ enterprise.email || '—' }}</dd></div>
-              </dl>
+        <!-- создание -->
+        <form v-else-if="isCreatingEnterprise" class="form" @submit.prevent="createEnterprise">
+          <FormField label="Название" required v-slot="{ id, describedBy, invalid }">
+            <input
+              :id="id"
+              v-model="createForm.short_name"
+              type="text"
+              required
+              placeholder="ООО «Ромашка»"
+              :aria-describedby="describedBy"
+              :aria-invalid="invalid"
+            />
+          </FormField>
+          <FormField label="ИНН" required v-slot="{ id, describedBy, invalid }">
+            <input
+              :id="id"
+              v-model="createForm.inn"
+              type="text"
+              inputmode="numeric"
+              required
+              :aria-describedby="describedBy"
+              :aria-invalid="invalid"
+            />
+          </FormField>
+          <div class="form__row">
+            <FormField label="Регион" required v-slot="{ id, describedBy, invalid }">
+              <input
+                :id="id"
+                v-model="createForm.region"
+                type="text"
+                required
+                :aria-describedby="describedBy"
+                :aria-invalid="invalid"
+              />
+            </FormField>
+            <FormField label="Город" v-slot="{ id, describedBy, invalid }">
+              <input
+                :id="id"
+                v-model="createForm.city"
+                type="text"
+                placeholder="Необязательно"
+                :aria-describedby="describedBy"
+                :aria-invalid="invalid"
+              />
+            </FormField>
+          </div>
+          <div class="form__row">
+            <FormField label="Телефон" v-slot="{ id, describedBy, invalid }">
+              <input
+                :id="id"
+                v-model="createForm.phone"
+                type="tel"
+                :aria-describedby="describedBy"
+                :aria-invalid="invalid"
+              />
+            </FormField>
+            <FormField label="Email" v-slot="{ id, describedBy, invalid }">
+              <input
+                :id="id"
+                v-model="createForm.email"
+                type="email"
+                :aria-describedby="describedBy"
+                :aria-invalid="invalid"
+              />
+            </FormField>
+          </div>
+          <div class="form__actions">
+            <AppButton variant="ghost" :disabled="savingEnterprise" @click="isCreatingEnterprise = false">
+              Отмена
+            </AppButton>
+            <AppButton type="submit" icon="plus" :loading="savingEnterprise">Создать предприятие</AppButton>
+          </div>
+        </form>
+
+        <!-- присоединение -->
+        <div v-else-if="isJoiningEnterprise" class="join">
+          <LoadingState v-if="loadingEnterprises" variant="skeleton" :rows="4" label="Загружаем список предприятий…" />
+
+          <template v-else>
+            <div v-if="joinableEnterprises.length" class="join__search">
+              <AppIcon name="search" :size="18" class="join__search-icon" />
+              <label for="join-search" class="sr-only">Поиск предприятия</label>
+              <input
+                id="join-search"
+                v-model="joinQuery"
+                type="search"
+                placeholder="Название, ИНН или город"
+                autocomplete="off"
+              />
             </div>
+            <p v-if="joinableEnterprises.length" class="join__count ui-muted">
+              Найдено: <span class="ui-num">{{ filteredEnterprises.length }}</span>
+            </p>
 
-            <div v-else class="card-body">
-              <div v-if="isCreatingEnterprise">
-                <form @submit.prevent="createEnterprise" class="edit-form">
-                  <div class="form-group">
-                    <label>Название</label>
-                    <input v-model="createForm.short_name" required />
-                  </div>
-                  <div class="form-group">
-                    <label>ИНН</label>
-                    <input v-model="createForm.inn" required />
-                  </div>
-                  <div class="form-group">
-                    <label>Регион</label>
-                    <input v-model="createForm.region" required />
-                  </div>
-                  <div class="form-group">
-                    <label>Город</label>
-                    <input v-model="createForm.city" placeholder="Необязательно" />
-                  </div>
-                  <div class="form-group">
-                    <label>Телефон</label>
-                    <input v-model="createForm.phone" />
-                  </div>
-                  <div class="form-group">
-                    <label>Email</label>
-                    <input v-model="createForm.email" type="email" />
-                  </div>
-                  <div class="edit-actions">
-                    <button type="button" @click="isCreatingEnterprise = false" class="cancel-btn">Отмена</button>
-                    <button type="submit" class="save-btn" :disabled="savingEnterprise">
-                      {{ savingEnterprise ? 'Создание...' : 'Создать предприятие' }}
-                    </button>
-                  </div>
-                </form>
-              </div>
-
-              <div v-else-if="isJoiningEnterprise">
-                <div class="join-list">
-                  <p v-if="loadingEnterprises" class="state-text">Загрузка списка...</p>
-                  <div v-else class="enterprise-items">
-                    <div v-for="ent in joinableEnterprises" :key="ent.id" class="enterprise-item">
-                      <div class="ent-info">
-                        <strong>{{ ent.short_name }}</strong>
-                        <span>ИНН: {{ ent.inn }}</span>
-                      </div>
-                      <button @click="joinEnterprise(ent.id)" class="join-btn-small">Выбрать</button>
-                    </div>
-                  </div>
-                  <button @click="isJoiningEnterprise = false" class="cancel-btn mt-2">Назад</button>
+            <ul v-if="filteredEnterprises.length" class="join__list">
+              <li v-for="ent in filteredEnterprises" :key="ent.id" class="join__item">
+                <AppAvatar :name="ent.short_name" :size="36" tone="neutral" />
+                <div class="join__info">
+                  <p class="join__name">{{ ent.short_name }}</p>
+                  <p class="join__meta">
+                    <span class="ui-num">ИНН {{ ent.inn || '—' }}</span>
+                    <span v-if="ent.region || ent.city">
+                      · {{ [ent.region, ent.city].filter(Boolean).join(', ') }}
+                    </span>
+                  </p>
                 </div>
-              </div>
+                <AppButton
+                  size="sm"
+                  variant="secondary"
+                  :loading="joiningId === ent.id"
+                  :disabled="savingEnterprise && joiningId !== ent.id"
+                  @click="onJoin(ent.id)"
+                >
+                  Выбрать
+                </AppButton>
+              </li>
+            </ul>
 
-              <div v-else class="no-enterprise-actions">
-                <p class="state-text">Вы пока не привязаны к предприятию</p>
-                <div class="action-buttons">
-                  <button @click="isCreatingEnterprise = true" class="primary-btn">Создать</button>
-                  <button @click="startJoinEnterprise" class="secondary-btn">Присоединиться</button>
-                </div>
-              </div>
-            </div>
-          </article>
+            <EmptyState
+              v-else
+              compact
+              icon="building"
+              :title="joinableEnterprises.length ? 'Ничего не найдено' : 'Список предприятий пуст'"
+              :description="
+                joinableEnterprises.length ? 'Попробуйте изменить запрос.' : 'Вы можете создать своё предприятие.'
+              "
+            >
+              <AppButton v-if="joinQuery" variant="ghost" size="sm" @click="joinQuery = ''">Сбросить поиск</AppButton>
+            </EmptyState>
+          </template>
+
+          <div class="form__actions form__actions--start">
+            <AppButton variant="ghost" icon="arrow-left" @click="isJoiningEnterprise = false">Назад</AppButton>
+          </div>
         </div>
-      </section>
-    </main>
+
+        <!-- нет предприятия -->
+        <EmptyState
+          v-else
+          icon="building"
+          title="Вы пока не привязаны к предприятию"
+          description="Создайте карточку своей компании или присоединитесь к уже зарегистрированной на платформе."
+        >
+          <AppButton icon="plus" @click="isCreatingEnterprise = true">Создать</AppButton>
+          <AppButton variant="secondary" icon="user-plus" @click="startJoinEnterprise">Присоединиться</AppButton>
+        </EmptyState>
+      </AppSection>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.profile-page {
-  color: var(--sl-ink);
-}
-
-.profile-main {
+.profile {
   display: grid;
-}
-
-/* ===== ТОСТ ===== */
-.notice {
-  position: fixed;
-  top: 84px;
-  right: 1.5rem;
-  z-index: 1000;
-  max-width: min(420px, calc(100vw - 2rem));
-  padding: 0.9rem 1.1rem;
-  font-weight: 700;
-  background: #fff;
-  border: 1px solid var(--sl-line);
-  border-left: 4px solid var(--sl-leaf);
-  box-shadow: 0 24px 48px rgba(20, 33, 15, 0.18);
-}
-
-.notice--success {
-  color: var(--sl-ink);
-}
-
-.notice--error {
-  color: #b3261e;
-  background: #fbeaea;
-  border-color: rgba(179, 38, 30, 0.3);
-  border-left-color: #b3261e;
-}
-
-.profile-toast-enter-active,
-.profile-toast-leave-active {
-  transition: opacity 0.25s ease, transform 0.25s ease;
-}
-
-.profile-toast-enter-from,
-.profile-toast-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
-}
-
-/* ===== ПАНЕЛЬ ===== */
-.profile-card {
-  background: var(--sl-paper);
-  border: 1px solid var(--sl-line);
-  border-top: 3px solid var(--sl-ink);
-  padding: clamp(1.25rem, 3vw, 2rem);
-}
-
-.profile-card-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 1rem;
-  padding-bottom: 1.5rem;
-  margin-bottom: 1.5rem;
-  border-bottom: 1px solid var(--sl-line);
-}
-
-.kicker {
-  margin: 0 0 0.6rem;
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--sl-leaf);
-}
-
-.profile-title {
-  margin: 0;
-  font-size: clamp(1.5rem, 3vw, 2.2rem);
-  color: var(--sl-ink);
-}
-
-/* ===== КНОПКИ ===== */
-.refresh-btn,
-.primary-btn,
-.save-btn,
-.join-btn-small,
-.secondary-btn,
-.edit-btn,
-.cancel-btn {
-  border-radius: 0;
-  padding: 0.7rem 1.2rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
-}
-
-.primary-btn,
-.save-btn,
-.join-btn-small {
-  background: var(--sl-ink);
-  color: #fff;
-  border: 1px solid var(--sl-ink);
-}
-
-.primary-btn:hover,
-.save-btn:hover,
-.join-btn-small:hover {
-  background: var(--sl-leaf);
-  border-color: var(--sl-leaf);
-}
-
-.refresh-btn,
-.secondary-btn,
-.edit-btn,
-.cancel-btn {
-  background: transparent;
-  color: var(--sl-ink);
-  border: 1px solid var(--sl-ink);
-}
-
-.refresh-btn:hover,
-.secondary-btn:hover,
-.edit-btn:hover,
-.cancel-btn:hover {
-  background: var(--sl-ink);
-  color: #fff;
-}
-
-.edit-btn,
-.join-btn-small {
-  padding: 0.45rem 0.85rem;
-  font-size: 0.85rem;
-}
-
-.refresh-btn:focus-visible,
-.primary-btn:focus-visible,
-.save-btn:focus-visible,
-.join-btn-small:focus-visible,
-.secondary-btn:focus-visible,
-.edit-btn:focus-visible,
-.cancel-btn:focus-visible {
-  outline: 2px solid var(--sl-leaf);
-  outline-offset: 2px;
-}
-
-button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-/* ===== КАРТОЧКИ ===== */
-.profile-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 1px;
-  background: var(--sl-line);
-  border: 1px solid var(--sl-line);
-}
-
-.info-card {
+  gap: 1.5rem;
   min-width: 0;
-  background: #fff;
 }
 
-.card-header {
+.profile__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 1.25rem;
+}
+
+/* ── Шапка карточки: аватар + имя ─────────────── */
+.identity {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 0.75rem;
-  min-height: 4rem;
-  padding: 0.85rem 1.25rem;
-  border-bottom: 1px solid var(--sl-line);
+  gap: 0.85rem;
+  padding-bottom: 1rem;
+  margin-bottom: 0.25rem;
+  border-bottom: 1px solid var(--c-border);
 }
 
-.info-title {
-  display: flex;
-  align-items: baseline;
-  gap: 0.75rem;
-  margin: 0;
-  font-size: 1.1rem;
-  color: var(--sl-ink);
+.identity__text {
+  display: grid;
+  justify-items: start;
+  gap: 0.3rem;
+  min-width: 0;
 }
 
-.card-index {
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  color: var(--sl-leaf);
-}
-
-.info-card > .edit-form,
-.info-card > .info-list,
-.card-body {
-  padding: 0.5rem 1.25rem 1.25rem;
-}
-
-.info-card > .edit-form,
-.card-body > .edit-form {
-  padding-top: 1.25rem;
-}
-
-.info-list {
-  margin: 0;
-}
-
-.info-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 0.8rem;
-  padding: 0.75rem 0;
-  border-bottom: 1px solid var(--sl-line);
-}
-
-.info-row:last-child {
-  border-bottom: none;
-}
-
-.info-row dt {
-  font-size: 0.72rem;
+.identity__name {
   font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--sl-muted);
-}
-
-.info-row dd {
-  margin: 0;
-  text-align: right;
-  font-weight: 700;
-  color: var(--sl-ink);
+  font-size: var(--fs-lg);
+  line-height: 1.25;
   overflow-wrap: anywhere;
 }
 
-/* ===== ФОРМЫ ===== */
-.edit-form {
+.identity__sub {
+  color: var(--c-muted);
+  font-size: var(--fs-sm);
+}
+
+/* ── Список «подпись — значение» ──────────────── */
+.facts {
+  margin: 0;
+}
+
+.facts__row {
   display: grid;
-  gap: 0.9rem;
-  padding-top: 0.75rem;
+  grid-template-columns: minmax(120px, 0.8fr) minmax(0, 1.2fr);
+  align-items: center;
+  gap: 0.25rem 1rem;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--c-border);
 }
 
-.form-group {
+.facts__row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.facts__row dt {
+  color: var(--c-muted);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.facts__row dd {
+  margin: 0;
+  color: var(--c-text);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* ── Формы ─────────────────────────────────────── */
+.form {
   display: grid;
-  gap: 0.35rem;
+  gap: 1rem;
 }
 
-.form-group label {
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--sl-muted);
+.form__row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
 }
 
-.form-group input {
-  width: 100%;
+.form__group {
+  display: grid;
+  gap: 1rem;
+  margin: 0;
+  padding: 1rem;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  background: var(--c-surface-2);
   min-width: 0;
-  border-radius: 0;
-  border: 1px solid var(--sl-line);
-  background: #fff;
 }
 
-.form-group input:focus-visible {
-  border-color: var(--sl-leaf);
+.form__legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.35rem;
+  font-weight: 700;
+  font-size: var(--fs-sm);
+  color: var(--c-text-2);
 }
 
-.edit-actions {
+.form__note {
+  margin-top: -0.5rem;
+  color: var(--c-muted);
+  font-size: var(--fs-sm);
+}
+
+.form__actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.6rem;
   padding-top: 1rem;
-  margin-top: 0.25rem;
-  border-top: 1px solid var(--sl-line);
+  border-top: 1px solid var(--c-border);
 }
 
-/* ===== СОСТОЯНИЯ ===== */
-.state-text {
+.form__actions--start {
+  justify-content: flex-start;
+}
+
+/* ── Присоединение ─────────────────────────────── */
+.join {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.join__search {
+  position: relative;
+}
+
+.join__search-icon {
+  position: absolute;
+  top: 50%;
+  left: 0.85rem;
+  transform: translateY(-50%);
+  color: var(--c-muted);
+  pointer-events: none;
+}
+
+.join__search input {
+  padding-left: 2.6rem;
+}
+
+.join__count {
+  font-size: var(--fs-sm);
+}
+
+.join__list {
+  display: grid;
+  max-height: 360px;
   margin: 0;
-  color: var(--sl-muted);
-}
-
-.state-text--error {
-  padding: 0.9rem 1rem;
-  color: #b3261e;
-  background: #fbeaea;
-  border: 1px solid rgba(179, 38, 30, 0.3);
-}
-
-.no-enterprise-actions {
-  display: grid;
-  gap: 1rem;
-  padding: 1rem 0 0.25rem;
-}
-
-.action-buttons {
-  display: flex;
-  gap: 0.6rem;
-  flex-wrap: wrap;
-}
-
-/* ===== ПРИСОЕДИНЕНИЕ ===== */
-.join-list {
-  display: grid;
-  gap: 1rem;
-  padding-top: 0.75rem;
-  justify-items: start;
-}
-
-.enterprise-items {
-  justify-self: stretch;
-  display: grid;
-  max-height: 280px;
+  padding: 0;
   overflow: auto;
-  border: 1px solid var(--sl-line);
+  list-style: none;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
 }
 
-.enterprise-item {
+.join__item {
   display: flex;
-  justify-content: space-between;
-  gap: 0.75rem;
   align-items: center;
+  gap: 0.75rem;
   padding: 0.75rem 0.9rem;
-  border-bottom: 1px solid var(--sl-line);
-  background: #fff;
-  transition: background 0.2s ease;
+  border-bottom: 1px solid var(--c-border);
+  transition: background var(--dur) var(--ease);
 }
 
-.enterprise-item:last-child {
+.join__item:last-child {
   border-bottom: none;
 }
 
-.enterprise-item:hover {
-  background: var(--sl-paper);
+.join__item:hover {
+  background: var(--c-surface-2);
 }
 
-.ent-info {
+.join__info {
+  flex: 1;
   display: grid;
-  gap: 0.15rem;
+  gap: 0.1rem;
   min-width: 0;
 }
 
-.ent-info strong {
-  color: var(--sl-ink);
+.join__name {
+  font-weight: 700;
   overflow-wrap: anywhere;
 }
 
-.ent-info span {
-  font-size: 0.82rem;
-  color: var(--sl-muted);
+.join__meta {
+  color: var(--c-muted);
+  font-size: var(--fs-sm);
 }
 
-.mt-2 {
-  margin-top: 0;
-}
-
-@media (max-width: 900px) {
-  .info-row {
-    flex-direction: column;
-    gap: 0.2rem;
-  }
-
-  .info-row dd {
-    text-align: left;
-  }
-
-  .edit-actions {
-    flex-direction: column-reverse;
-  }
-
-  .edit-actions button {
-    width: 100%;
+@media (max-width: 1024px) {
+  .profile__grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
 @media (max-width: 520px) {
-  .profile-card-head {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .profile-grid {
+  .facts__row {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .card-header,
-  .info-card > .edit-form,
-  .info-card > .info-list,
-  .card-body {
-    padding-left: 1rem;
-    padding-right: 1rem;
+  .form__actions {
+    flex-direction: column-reverse;
+  }
+
+  .form__actions > * {
+    width: 100%;
+  }
+
+  .join__item {
+    flex-wrap: wrap;
+  }
+
+  .join__item > :last-child {
+    margin-left: auto;
   }
 }
 </style>

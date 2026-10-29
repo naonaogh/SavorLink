@@ -1,8 +1,20 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { getApiErrorMessage } from '@/services/apiClient'
 import { useAuthStore } from '@/stores/authStore'
-import { useShopStore } from '@/stores/shopStore'
+import { useShopStore, type CartItem } from '@/stores/shopStore'
+import {
+  AppButton,
+  AppIcon,
+  AppSection,
+  EmptyState,
+  FormField,
+  LoadingState,
+  PageHeader,
+  ProductThumb,
+} from '@/components/ui'
+import { formatNumber, formatPrice, pluralize } from '@/utils/format'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -34,8 +46,44 @@ const groupedSuppliers = computed(() => {
   return Array.from(map.values())
 })
 
+/* Состав заказа по поставщикам — только для отображения */
+const lineTotal = (item: CartItem) => Number(item.product.price) * item.quantity
+
+const supplierBlocks = computed(() => {
+  const map = new Map<number, { id: number; name: string; items: CartItem[]; amount: number }>()
+  for (const item of cartItems.value) {
+    const id = item.product.enterprise?.id ?? 0
+    const block = map.get(id) ?? {
+      id,
+      name: item.product.enterprise?.short_name || 'Поставщик не указан',
+      items: [],
+      amount: 0,
+    }
+    block.items.push(item)
+    block.amount += lineTotal(item)
+    map.set(id, block)
+  }
+  return Array.from(map.values())
+})
+
+const steps = [
+  { label: 'Корзина', state: 'done' },
+  { label: 'Проверка заказа', state: 'current' },
+  { label: 'Заказ отправлен', state: 'next' },
+] as const
+
+const stepState = (index: number) => {
+  if (successMessage.value) return index < 2 ? 'done' : 'current'
+  return steps[index]?.state ?? 'next'
+}
+
+/*
+ * «Тип заказа» и «Комментарий к доставке» пока не передаются на backend:
+ * store.checkoutCart() отправляет только поставщика и позиции.
+ */
 const orderType = ref('Обычный заказ')
 const deliveryNote = ref('Доставить в рабочие часы')
+const localOnlyHint = 'Пока не передаётся поставщику — значение хранится только на этой странице.'
 
 onMounted(async () => {
   if (!authStore.token) {
@@ -65,8 +113,8 @@ const submitCheckout = async () => {
 
     successMessage.value = `Заказ оформлен. Создано заказов: ${result.orders.length}.`
     setTimeout(() => router.push('/my-orders'), 1600)
-  } catch (error: any) {
-    errorMessage.value = error?.message || 'Не удалось оформить заказ.'
+  } catch (error: unknown) {
+    errorMessage.value = getApiErrorMessage(error, 'Не удалось оформить заказ.')
   } finally {
     isSubmitting.value = false
   }
@@ -74,421 +122,446 @@ const submitCheckout = async () => {
 </script>
 
 <template>
-  <main class="checkout-page">
-    <section class="hero-card">
-      <div>
-        <p class="eyebrow"><span class="eyebrow-num" aria-hidden="true">Шаг 02 /</span> Проверка заказа</p>
-        <h1 class="page-title">Оформление заказа</h1>
-        <p class="page-text">Проверьте состав, поставщиков и сумму перед отправкой заказа.</p>
-      </div>
-      <div class="hero-total">
-        <span>К оплате</span>
-        <strong>{{ cartTotal.toFixed(0) }} ₽</strong>
+  <div class="page">
+    <PageHeader
+      eyebrow="Оформление"
+      title="Оформление заказа"
+      description="Проверьте состав, поставщиков и сумму перед отправкой заказа."
+      back-to="/cart"
+      back-label="Вернуться в корзину"
+    >
+      <ol class="steps" aria-label="Этапы оформления">
+        <li
+          v-for="(step, index) in steps"
+          :key="step.label"
+          class="step"
+          :class="`step--${stepState(index)}`"
+          :aria-current="stepState(index) === 'current' ? 'step' : undefined"
+        >
+          <span class="step__dot ui-num">
+            <AppIcon v-if="stepState(index) === 'done'" name="check" :size="14" :stroke-width="2.6" />
+            <template v-else>{{ index + 1 }}</template>
+          </span>
+          <span class="step__label">{{ step.label }}</span>
+        </li>
+      </ol>
+    </PageHeader>
+
+    <!-- Успех -->
+    <section v-if="successMessage" class="success ui-card" role="status" aria-live="polite">
+      <span class="success__icon"><AppIcon name="check-circle" :size="32" /></span>
+      <h2 class="success__title">Заказ отправлен поставщикам</h2>
+      <p class="success__text">{{ successMessage }}</p>
+      <p class="success__hint">Статус заказа можно отслеживать на странице «Мои заказы» — сейчас мы её откроем.</p>
+      <div class="success__actions">
+        <AppButton to="/cabinet/orders" icon-right="arrow-right">Мои заказы</AppButton>
+        <AppButton to="/catalog" variant="secondary" icon="store">Вернуться в каталог</AppButton>
       </div>
     </section>
 
-    <div v-if="isLoading" class="state-box">Загрузка корзины...</div>
+    <LoadingState v-else-if="isLoading" variant="skeleton" :rows="4" label="Загрузка корзины…" />
 
-    <div v-else-if="cartItems.length === 0" class="state-box">
-      <p>Корзина пуста. Сначала добавьте товары в каталоге.</p>
-      <router-link to="/catalog" class="primary-link">Перейти в каталог</router-link>
+    <div v-else-if="cartItems.length === 0" class="ui-card">
+      <EmptyState icon="cart" title="Корзина пуста" description="Сначала добавьте товары в каталоге.">
+        <AppButton to="/catalog" icon="store">Перейти в каталог</AppButton>
+      </EmptyState>
     </div>
 
     <div v-else class="checkout-layout">
-      <section class="card-list">
-        <p class="block-kicker">Состав заказа</p>
-        <div v-for="item in cartItems" :key="item.id" class="order-row">
-          <div>
-            <h2>{{ item.product.name }}</h2>
-            <p>{{ item.product.enterprise?.short_name }} · {{ item.product.category?.name }}</p>
+      <AppSection
+        title="Состав заказа"
+        :description="`${cartItems.length} ${pluralize(cartItems.length, ['позиция', 'позиции', 'позиций'])} · заказ будет разделён по поставщикам`"
+        flush
+      >
+        <div v-for="block in supplierBlocks" :key="block.id" class="supplier">
+          <header class="supplier__head">
+            <span class="supplier__icon"><AppIcon name="building" :size="16" /></span>
+            <h3 class="supplier__name">{{ block.name }}</h3>
+            <span class="supplier__subtotal ui-num">
+              <span class="ui-muted">Подытог</span> {{ formatPrice(block.amount) }}
+            </span>
+          </header>
+          <ul class="lines">
+            <li v-for="item in block.items" :key="item.id" class="line">
+              <ProductThumb :category="item.product.category?.name" size="sm" />
+              <div class="line__info">
+                <p class="line__name">{{ item.product.name }}</p>
+                <p class="line__meta">
+                  {{ item.product.category?.name || 'Без категории' }} ·
+                  <span class="ui-num">{{ formatPrice(item.product.price) }}/кг</span>
+                </p>
+              </div>
+              <span class="line__qty ui-num">{{ formatNumber(item.quantity) }} кг</span>
+              <strong class="line__sum ui-num">{{ formatPrice(lineTotal(item)) }}</strong>
+            </li>
+          </ul>
+        </div>
+      </AppSection>
+
+      <aside class="summary ui-card" aria-labelledby="checkout-summary-title">
+        <h2 id="checkout-summary-title" class="summary__title">Детали заказа</h2>
+
+        <div class="summary__form">
+          <FormField label="Тип заказа" :hint="localOnlyHint" v-slot="{ id, describedBy }">
+            <input :id="id" v-model="orderType" type="text" :aria-describedby="describedBy" />
+          </FormField>
+
+          <FormField label="Комментарий к доставке" :hint="localOnlyHint" v-slot="{ id, describedBy }">
+            <textarea :id="id" v-model="deliveryNote" rows="3" :aria-describedby="describedBy"></textarea>
+          </FormField>
+
+          <div class="summary__suppliers">
+            <p class="ui-label">Поставщики</p>
+            <div v-for="supplier in groupedSuppliers" :key="supplier.id" class="summary__line">
+              <span>{{ supplier.name }}</span>
+              <strong class="ui-num">{{ formatPrice(supplier.amount) }}</strong>
+            </div>
           </div>
-          <div class="row-meta">
-            <span>{{ item.quantity }} кг</span>
-            <strong>{{ (Number(item.product.price) * item.quantity).toFixed(0) }} ₽</strong>
+
+          <div class="summary__total">
+            <span>К оплате</span>
+            <strong class="ui-num">{{ formatPrice(cartTotal) }}</strong>
           </div>
+
+          <p v-if="errorMessage" class="summary__error" role="alert">
+            <AppIcon name="alert-circle" :size="18" />
+            <span>{{ errorMessage }}</span>
+          </p>
+
+          <AppButton block size="lg" icon="check" :loading="isSubmitting" @click="submitCheckout">
+            {{ isSubmitting ? 'Оформляем…' : 'Подтвердить заказ' }}
+          </AppButton>
+          <AppButton to="/cart" block variant="ghost" icon="arrow-left">Вернуться в корзину</AppButton>
         </div>
-      </section>
-
-      <aside class="summary-card">
-        <p class="block-kicker">Детали</p>
-        <div class="field">
-          <label>Тип заказа</label>
-          <input v-model="orderType" type="text" />
-        </div>
-
-        <div class="field">
-          <label>Комментарий к доставке</label>
-          <textarea v-model="deliveryNote" rows="4"></textarea>
-        </div>
-
-        <div class="summary-list">
-          <p class="summary-list-label">Поставщики</p>
-          <div v-for="supplier in groupedSuppliers" :key="supplier.id" class="summary-line">
-            <span>{{ supplier.name }}</span>
-            <strong>{{ supplier.amount.toFixed(0) }} ₽</strong>
-          </div>
-        </div>
-
-        <div v-if="errorMessage" class="message message--error">{{ errorMessage }}</div>
-        <div v-if="successMessage" class="message message--success">{{ successMessage }}</div>
-
-        <button class="checkout-btn" :disabled="isSubmitting" @click="submitCheckout">
-          {{ isSubmitting ? 'Оформляем...' : 'Подтвердить заказ' }}
-        </button>
-        <router-link to="/cart" class="secondary-link">Вернуться в корзину</router-link>
       </aside>
     </div>
-  </main>
+  </div>
 </template>
 
 <style scoped>
-.checkout-page {
+.page {
   display: grid;
-  gap: 1.25rem;
-  padding: 1.25rem 0 2rem;
-  color: var(--sl-ink);
+  gap: 1.5rem;
 }
 
-p,
-h1,
-h2 {
-  margin: 0;
+/* ── Этапы ─────────────────────────────────── */
+.steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  list-style: none;
 }
 
-/* ШАПКА СТРАНИЦЫ */
-.hero-card {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  background: var(--sl-paper);
-  border: 1px solid var(--sl-line);
-  border-top: 3px solid var(--sl-ink);
-}
-
-.hero-card > div:first-child {
-  padding: clamp(1.25rem, 3vw, 2rem) clamp(1.25rem, 3vw, 2.25rem);
-}
-
-.eyebrow,
-.block-kicker {
-  margin-bottom: 0.6rem;
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--sl-leaf);
-}
-
-.page-title {
-  font-size: clamp(1.5rem, 3vw, 2.2rem);
-  color: var(--sl-ink);
-}
-
-.page-text {
-  margin-top: 0.75rem;
-  max-width: 56ch;
-  color: var(--sl-muted);
-}
-
-.hero-total {
-  min-width: 240px;
-  display: grid;
-  align-content: center;
+.step {
+  display: inline-flex;
+  align-items: center;
   gap: 0.5rem;
-  padding: 1.5rem clamp(1.25rem, 3vw, 2.25rem);
-  color: #fff;
-  background:
-    repeating-linear-gradient(135deg, rgba(198, 236, 154, 0.05) 0 1px, transparent 1px 14px),
-    var(--sl-forest);
-}
-
-.hero-total span {
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--sl-lime);
-}
-
-.hero-total strong {
-  font-family: var(--sl-display);
-  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  color: var(--c-muted);
+  font-size: var(--fs-sm);
   font-weight: 600;
-  line-height: 1.1;
-  white-space: nowrap;
 }
 
-/* СОСТОЯНИЯ */
-.state-box {
+.step__dot {
   display: grid;
-  justify-items: start;
-  gap: 1rem;
-  padding: 1.5rem;
-  background: var(--sl-paper);
-  border: 1px solid var(--sl-line);
-  color: var(--sl-muted);
-  font-weight: 600;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--c-border-strong);
+  background: var(--c-surface);
+  font-size: var(--fs-xs);
+  font-weight: 700;
 }
 
-.state-box p {
-  color: var(--sl-ink);
+.step--done {
+  color: var(--c-text-2);
 }
 
-/* РАСКЛАДКА */
+.step--done .step__dot {
+  border-color: var(--c-accent-200);
+  background: var(--c-accent-100);
+  color: var(--c-accent-700);
+}
+
+.step--current {
+  color: var(--c-text);
+}
+
+.step--current .step__dot {
+  border-color: var(--c-brand-800);
+  background: var(--c-brand-800);
+  color: #fff;
+}
+
+/* ── Раскладка ─────────────────────────────── */
 .checkout-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(0, 0.9fr);
-  gap: 1.25rem;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 1.5rem;
   align-items: start;
 }
 
-.card-list,
-.summary-card {
-  padding: 1.5rem;
-  background: var(--sl-paper);
-  border: 1px solid var(--sl-line);
+/* ── Состав по поставщикам ─────────────────── */
+.supplier + .supplier {
+  border-top: 1px solid var(--c-border);
 }
 
-.card-list .block-kicker,
-.summary-card .block-kicker {
-  padding-bottom: 0.9rem;
-  margin-bottom: 0;
-  border-bottom: 1px solid var(--sl-line);
-}
-
-/* СТРОКИ ЗАКАЗА */
-.order-row {
+.supplier__head {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
-  padding: 1rem 0.75rem;
-  margin: 0 -0.75rem;
-  border-bottom: 1px solid var(--sl-line);
-  transition: background 0.2s ease;
-}
-
-.order-row:hover {
-  background: #fff;
-}
-
-.order-row:last-child {
-  border-bottom: none;
-}
-
-.order-row h2 {
-  margin-bottom: 0.3rem;
-  font-family: inherit;
-  font-size: 1rem;
-  font-weight: 700;
-  letter-spacing: 0;
-  color: var(--sl-ink);
-}
-
-.order-row p {
-  font-size: 0.88rem;
-  color: var(--sl-muted);
-}
-
-.row-meta {
-  display: grid;
-  justify-items: end;
-  gap: 0.25rem;
-  white-space: nowrap;
-}
-
-.row-meta span {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--sl-muted);
-}
-
-.row-meta strong {
-  font-family: var(--sl-display);
-  font-size: 1.05rem;
-  font-weight: 600;
-  color: var(--sl-ink);
-}
-
-/* ПРАВАЯ ПАНЕЛЬ */
-.summary-card {
-  position: sticky;
-  top: 1rem;
-  border-top: 3px solid var(--sl-ink);
-}
-
-.summary-card .block-kicker {
-  margin-bottom: 1.25rem;
-}
-
-.field {
-  display: grid;
-  gap: 0.45rem;
-  margin-bottom: 1rem;
-}
-
-.field label,
-.summary-list-label {
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--sl-muted);
-}
-
-.field input,
-.field textarea {
-  width: 100%;
-  border-radius: 0;
-  border: 1px solid var(--sl-line);
-  background: #fff;
-}
-
-.field textarea {
-  resize: vertical;
-}
-
-.summary-list {
-  display: grid;
-  margin: 0.5rem 0 1.25rem;
-  border-bottom: 2px solid var(--sl-ink);
-}
-
-.summary-list-label {
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--sl-line);
-}
-
-.summary-line {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.6rem 0;
-  border-bottom: 1px solid var(--sl-line);
-  font-size: 0.92rem;
-}
-
-.summary-line:last-child {
-  border-bottom: none;
-}
-
-.summary-line strong {
-  white-space: nowrap;
-}
-
-.message {
-  padding: 0.8rem 1rem;
-  margin-bottom: 0.75rem;
-  font-size: 0.9rem;
-  font-weight: 600;
-}
-
-.message--error {
-  background: #fbeaea;
-  border: 1px solid #b3261e;
-  color: #b3261e;
-}
-
-.message--success {
-  background: var(--sl-lime);
-  border: 1px solid var(--sl-lime);
-  color: var(--sl-ink);
-}
-
-/* КНОПКИ */
-.checkout-btn,
-.secondary-link,
-.primary-link {
-  display: inline-flex;
-  justify-content: center;
   align-items: center;
-  border-radius: 0;
-  padding: 0.85rem 1.2rem;
+  gap: 0.6rem;
+  padding: 0.85rem 1.25rem;
+  background: var(--c-surface-2);
+  border-bottom: 1px solid var(--c-border);
+}
+
+.supplier__icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border-radius: var(--r-sm);
+  background: var(--c-accent-50);
+  color: var(--c-accent-700);
+}
+
+.supplier__name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-md);
+  overflow-wrap: anywhere;
+}
+
+.supplier__subtotal {
   font-weight: 700;
-  cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  white-space: nowrap;
 }
 
-.checkout-btn,
-.primary-link {
-  background: var(--sl-ink);
-  color: #fff;
-  border: 1px solid var(--sl-ink);
+.supplier__subtotal .ui-muted {
+  margin-right: 0.35rem;
+  font-size: var(--fs-xs);
+  font-weight: 600;
 }
 
-.checkout-btn {
-  width: 100%;
-  margin-bottom: 0.5rem;
+.lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.checkout-btn:hover:not(:disabled),
-.primary-link:hover {
-  background: var(--sl-leaf);
-  border-color: var(--sl-leaf);
+.line {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto 7rem;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.85rem 1.25rem;
 }
 
-.checkout-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
+.line + .line {
+  border-top: 1px solid var(--c-border);
 }
 
-.secondary-link {
-  width: 100%;
-  background: transparent;
-  color: var(--sl-ink);
-  border: 1px solid var(--sl-ink);
+.line__info {
+  min-width: 0;
 }
 
-.secondary-link:hover {
-  background: var(--sl-ink);
-  color: #fff;
+.line__name {
+  font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
-.checkout-btn:focus-visible,
-.secondary-link:focus-visible,
-.primary-link:focus-visible {
-  outline: 2px solid var(--sl-leaf);
-  outline-offset: 2px;
+.line__meta {
+  color: var(--c-muted);
+  font-size: var(--fs-sm);
 }
 
-/* АДАПТИВ */
-@media (max-width: 900px) {
+.line__qty {
+  color: var(--c-text-2);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.line__sum {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* ── Сводка ────────────────────────────────── */
+.summary {
+  position: sticky;
+  top: calc(var(--header-h) + 1rem);
+  display: grid;
+  gap: 1.1rem;
+  padding: 1.5rem;
+}
+
+.summary__title {
+  font-size: var(--fs-xl);
+}
+
+.summary__form {
+  display: grid;
+  gap: 1.1rem;
+}
+
+.summary__suppliers {
+  display: grid;
+  gap: 0.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--c-border);
+}
+
+.summary__line {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: var(--fs-sm);
+}
+
+.summary__line span {
+  min-width: 0;
+  color: var(--c-text-2);
+  overflow-wrap: anywhere;
+}
+
+.summary__line strong {
+  white-space: nowrap;
+}
+
+.summary__total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--c-border);
+  font-weight: 700;
+}
+
+.summary__total strong {
+  font-size: var(--fs-2xl);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--c-brand-900);
+}
+
+.summary__error {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: var(--r-sm);
+  background: var(--c-danger-bg);
+  color: var(--c-danger-600);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.summary__error .app-icon {
+  flex: 0 0 auto;
+  margin-top: 0.1rem;
+}
+
+/* ── Успех ─────────────────────────────────── */
+.success {
+  display: grid;
+  justify-items: center;
+  gap: 0.6rem;
+  padding: clamp(2rem, 6vw, 3.5rem) 1.5rem;
+  text-align: center;
+}
+
+.success__icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin-bottom: 0.4rem;
+  border-radius: 50%;
+  background: var(--c-success-bg);
+  color: var(--c-success);
+}
+
+.success__title {
+  font-size: var(--fs-2xl);
+}
+
+.success__text {
+  font-weight: 600;
+  color: var(--c-text-2);
+}
+
+.success__hint {
+  max-width: 460px;
+  color: var(--c-muted);
+  font-size: var(--fs-sm);
+}
+
+.success__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+
+/* ── Адаптив ───────────────────────────────── */
+@media (max-width: 1024px) {
   .checkout-layout {
     grid-template-columns: 1fr;
   }
 
-  .summary-card {
+  .summary {
     position: static;
   }
 }
 
-@media (max-width: 640px) {
-  .checkout-page {
-    padding-top: 0.75rem;
+@media (max-width: 560px) {
+  .supplier__head,
+  .line {
+    padding-inline: 1rem;
   }
 
-  .hero-card {
-    grid-template-columns: 1fr;
+  .supplier__head {
+    flex-wrap: wrap;
   }
 
-  .hero-total {
-    min-width: 0;
+  .line {
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    grid-template-areas:
+      'thumb info info'
+      'thumb qty sum';
+    row-gap: 0.35rem;
   }
 
-  .card-list,
-  .summary-card {
-    padding: 1.25rem 1rem;
+  .line > :first-child {
+    grid-area: thumb;
+    align-self: start;
   }
 
-  .order-row {
-    flex-direction: column;
-    gap: 0.5rem;
+  .line__info {
+    grid-area: info;
   }
 
-  .row-meta {
-    width: 100%;
-    grid-auto-flow: column;
-    justify-content: space-between;
-    align-items: baseline;
+  .line__qty {
+    grid-area: qty;
+  }
+
+  .line__sum {
+    grid-area: sum;
+  }
+
+  .summary {
+    padding: 1.25rem;
+  }
+
+  .success__actions > * {
+    flex: 1 1 100%;
   }
 }
 </style>

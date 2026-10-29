@@ -1,9 +1,21 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import api from '@/services/apiClient'
+import api, { getApiErrorMessage } from '@/services/apiClient'
 import { useAuthStore } from '@/stores/authStore'
 import { useShopStore } from '@/stores/shopStore'
+import {
+  AppBadge,
+  AppButton,
+  AppIcon,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  PageHeader,
+  StatusBadge,
+} from '@/components/ui'
+import type { IconName } from '@/components/ui'
+import { formatDate, formatPrice, pluralize } from '@/utils/format'
 
 type NotificationItem = {
   id: string
@@ -11,6 +23,8 @@ type NotificationItem = {
   text: string
   kind: 'order' | 'message' | 'system'
   date: string
+  /** код статуса заказа — для бейджа */
+  status?: string
 }
 
 const router = useRouter()
@@ -18,14 +32,9 @@ const authStore = useAuthStore()
 const store = useShopStore()
 const notifications = ref<NotificationItem[]>([])
 const loading = ref(false)
+const error = ref('')
 
-const formatDate = (value: string) =>
-  new Date(value).toLocaleString('ru-RU', {
-    day: '2-digit',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+const perspective = authStore.user?.role === 'SUPPLIER' ? 'supplier' : 'buyer'
 
 const buildOrderNotifications = () => {
   const source = authStore.user?.role === 'SUPPLIER' ? store.state.supplierOrders : store.state.myOrders
@@ -33,19 +42,16 @@ const buildOrderNotifications = () => {
   return source.slice(0, 8).map((order) => ({
     id: `order-${order.id}`,
     title: `Заказ #${order.id}`,
-    text: `Статус: ${order.status}. Сумма: ${order.total_amount ?? 0} ₽.`,
+    text: `Сумма заказа: ${formatPrice(order.total_amount ?? 0)}`,
     kind: 'order' as const,
     date: order.created_at,
+    status: order.status,
   }))
 }
 
-onMounted(async () => {
-  if (!authStore.token) {
-    router.push('/auth')
-    return
-  }
-
+const loadNotifications = async () => {
   loading.value = true
+  error.value = ''
   try {
     if (authStore.user?.role === 'SUPPLIER') {
       await store.fetchSupplierOrders()
@@ -67,225 +73,225 @@ onMounted(async () => {
         id: 'system-1',
         title: 'Система',
         text: 'Все основные уведомления теперь собираются в одном месте.',
-        kind: 'system',
+        kind: 'system' as const,
         date: new Date().toISOString(),
       },
       ...buildOrderNotifications(),
       ...chatNotifications,
     ].sort((a, b) => +new Date(b.date) - +new Date(a.date))
+  } catch (e) {
+    error.value = getApiErrorMessage(e, 'Не удалось загрузить уведомления')
   } finally {
     loading.value = false
   }
+}
+
+onMounted(() => {
+  if (!authStore.token) {
+    router.push('/auth')
+    return
+  }
+  loadNotifications()
 })
 
-const badgeLabel = {
-  order: 'Заказ',
-  message: 'Чат',
-  system: 'Система',
+const KIND_META: Record<
+  NotificationItem['kind'],
+  { label: string; icon: IconName; tone: 'info' | 'accent' | 'neutral'; to?: string; action?: string }
+> = {
+  order: { label: 'Заказ', icon: 'package', tone: 'info', to: '/cabinet/orders', action: 'К заказам' },
+  message: { label: 'Чат', icon: 'message', tone: 'accent', to: '/cabinet/chat', action: 'Открыть чат' },
+  system: { label: 'Система', icon: 'bell', tone: 'neutral' },
 }
 </script>
 
 <template>
-  <main class="notifications-page">
-    <section class="hero">
-      <div>
-        <p class="eyebrow">Уведомления</p>
-        <h1>Лента событий</h1>
-        <p class="hero-lead">Здесь собраны заказы, новые сообщения и системные подсказки.</p>
-      </div>
-      <router-link to="/chat" class="primary-btn">Перейти в чат</router-link>
-    </section>
+  <div class="notifications">
+    <PageHeader
+      eyebrow="Уведомления"
+      title="Лента событий"
+      description="Здесь собраны заказы, новые сообщения и системные подсказки."
+    >
+      <template #actions>
+        <AppButton to="/cabinet/chat" icon="message">Перейти в чат</AppButton>
+      </template>
+    </PageHeader>
 
-    <div class="feed">
-      <div v-if="loading" class="state-box">Загрузка уведомлений...</div>
+    <LoadingState v-if="loading && notifications.length === 0" variant="skeleton" :rows="5" label="Загрузка уведомлений…" />
 
-      <div v-else-if="notifications.length === 0" class="state-box">
-        У вас пока нет уведомлений.
-      </div>
+    <ErrorState v-else-if="error" :message="error" :retrying="loading" @retry="loadNotifications" />
 
-      <div v-else class="list">
-        <article v-for="item in notifications" :key="item.id" class="notify-card">
-          <div class="notify-head">
-            <span class="badge" :class="item.kind">{{ badgeLabel[item.kind] }}</span>
-            <time>{{ formatDate(item.date) }}</time>
-          </div>
-          <div class="notify-body">
-            <h2>{{ item.title }}</h2>
-            <p>{{ item.text }}</p>
-          </div>
-        </article>
-      </div>
+    <div v-else-if="notifications.length === 0" class="ui-card ui-card--pad">
+      <EmptyState icon="bell" title="У вас пока нет уведомлений" description="Новые заказы и сообщения появятся здесь." />
     </div>
-  </main>
+
+    <section v-else class="feed ui-card" aria-labelledby="feed-title">
+      <header class="feed__head">
+        <h2 id="feed-title" class="feed__title">Последние события</h2>
+        <span class="ui-muted feed__count">
+          <span class="ui-num">{{ notifications.length }}</span>
+          {{ pluralize(notifications.length, ['событие', 'события', 'событий']) }}
+        </span>
+      </header>
+
+      <ul class="feed__list">
+        <li v-for="item in notifications" :key="item.id" class="note" :class="`note--${item.kind}`">
+          <span class="note__icon" aria-hidden="true">
+            <AppIcon :name="KIND_META[item.kind].icon" :size="20" />
+          </span>
+
+          <div class="note__body">
+            <div class="note__top">
+              <h3 class="note__title">{{ item.title }}</h3>
+              <AppBadge :tone="KIND_META[item.kind].tone" size="sm">{{ KIND_META[item.kind].label }}</AppBadge>
+              <StatusBadge v-if="item.status" :status="item.status" :perspective="perspective" />
+            </div>
+            <p class="note__text">{{ item.text }}</p>
+          </div>
+
+          <div class="note__side">
+            <time class="note__time ui-num" :datetime="item.date">{{ formatDate(item.date, 'datetime') }}</time>
+            <AppButton
+              v-if="KIND_META[item.kind].to"
+              :to="KIND_META[item.kind].to"
+              variant="ghost"
+              size="sm"
+              icon-right="chevron-right"
+            >
+              {{ KIND_META[item.kind].action }}
+            </AppButton>
+          </div>
+        </li>
+      </ul>
+    </section>
+  </div>
 </template>
 
 <style scoped>
-.notifications-page {
+.notifications {
   display: grid;
-  background: var(--sl-paper);
-  border: 1px solid var(--sl-line);
-  border-top: 3px solid var(--sl-ink);
-  color: var(--sl-ink);
-}
-
-/* ===== ШАПКА ===== */
-.hero {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 1rem 2rem;
-  padding: clamp(1.25rem, 3vw, 2rem);
-  border-bottom: 1px solid var(--sl-line);
-}
-
-.eyebrow {
-  margin: 0 0 0.6rem;
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--sl-leaf);
-}
-
-.hero h1 {
-  margin: 0;
-  font-size: clamp(1.5rem, 3vw, 2.2rem);
-  color: var(--sl-ink);
-}
-
-.hero-lead {
-  margin: 0.75rem 0 0;
-  max-width: 60ch;
-  color: var(--sl-muted);
-}
-
-.primary-btn {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.7rem 1.2rem;
-  background: var(--sl-ink);
-  color: #fff;
-  border: 1px solid var(--sl-ink);
-  border-radius: 0;
-  font-weight: 700;
-  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
-}
-
-.primary-btn:hover {
-  background: var(--sl-leaf);
-  border-color: var(--sl-leaf);
-}
-
-.primary-btn:focus-visible {
-  outline: 2px solid var(--sl-leaf);
-  outline-offset: 2px;
-}
-
-/* ===== ЛЕНТА ===== */
-.feed {
-  padding: clamp(1.25rem, 3vw, 2rem);
-}
-
-.state-box {
-  padding: 1.25rem;
-  background: #fff;
-  border: 1px solid var(--sl-line);
-  color: var(--sl-muted);
-}
-
-.list {
-  display: grid;
-  gap: 1px;
-  background: var(--sl-line);
-  border: 1px solid var(--sl-line);
-}
-
-.notify-card {
-  display: grid;
-  grid-template-columns: 170px minmax(0, 1fr);
-  gap: 0.5rem 1.5rem;
-  padding: 1.1rem 1.25rem;
-  background: #fff;
-  transition: background 0.2s ease;
-}
-
-.notify-card:hover {
-  background: var(--sl-paper);
-}
-
-.notify-head {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.5rem;
-  font-size: 0.8rem;
-  color: var(--sl-muted);
-}
-
-.badge {
-  padding: 0.2rem 0.5rem;
-  border-radius: 0;
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  border: 1px solid transparent;
-}
-
-.badge.order {
-  background: var(--sl-ink);
-  color: var(--sl-lime);
-}
-
-.badge.message {
-  background: var(--sl-lime);
-  color: var(--sl-ink);
-}
-
-.badge.system {
-  background: var(--sl-paper);
-  border-color: var(--sl-line);
-  color: var(--sl-ink);
-}
-
-.notify-body {
+  gap: 1.5rem;
   min-width: 0;
 }
 
-.notify-card h2 {
-  margin: 0 0 0.3rem;
-  font-family: inherit;
-  font-size: 1rem;
-  font-weight: 700;
-  letter-spacing: 0;
-  color: var(--sl-ink);
+.feed {
+  overflow: hidden;
 }
 
-.notify-card p {
+.feed__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 1.1rem clamp(1.1rem, 2.5vw, 1.5rem);
+  border-bottom: 1px solid var(--c-border);
+}
+
+.feed__title {
+  font-size: var(--fs-lg);
+}
+
+.feed__count {
+  font-size: var(--fs-sm);
+}
+
+.feed__list {
   margin: 0;
-  color: var(--sl-muted);
+  padding: 0;
+  list-style: none;
+}
+
+.note {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.9rem;
+  padding: 1rem clamp(1.1rem, 2.5vw, 1.5rem);
+  border-bottom: 1px solid var(--c-border);
+  transition: background var(--dur) var(--ease);
+}
+
+.note:last-child {
+  border-bottom: none;
+}
+
+.note:hover {
+  background: var(--c-surface-2);
+}
+
+.note__icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-md);
+  background: var(--c-surface-sunken);
+  color: var(--c-text-2);
+}
+
+.note--order .note__icon {
+  background: var(--c-info-bg);
+  color: var(--c-info);
+}
+
+.note--message .note__icon {
+  background: var(--c-accent-50);
+  color: var(--c-accent-700);
+}
+
+.note__body {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.note__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.5rem;
+}
+
+.note__title {
+  font-size: var(--fs-md);
+  letter-spacing: -0.01em;
+}
+
+.note__text {
+  color: var(--c-text-2);
+  font-size: var(--fs-sm);
   overflow-wrap: anywhere;
 }
 
-@media (max-width: 900px) {
-  .hero {
-    flex-direction: column;
-    align-items: flex-start;
-  }
+.note__side {
+  display: grid;
+  justify-items: end;
+  gap: 0.25rem;
 }
 
-@media (max-width: 600px) {
-  .notify-card {
-    grid-template-columns: minmax(0, 1fr);
+.note__time {
+  color: var(--c-muted);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+  padding-top: 0.2rem;
+}
+
+@media (max-width: 640px) {
+  .note {
+    grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .notify-head {
-    flex-direction: row;
-    justify-content: space-between;
+  .note__side {
+    grid-column: 2;
+    display: flex;
+    flex-wrap: wrap;
     align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .note__time {
+    padding-top: 0;
   }
 }
 </style>

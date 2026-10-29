@@ -63,3 +63,5 @@ __screenshots__/
 
 # Vite
 *.timestamp-*-*.mjs
+
+savorlink.sql
